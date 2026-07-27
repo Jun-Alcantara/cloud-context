@@ -1,7 +1,7 @@
 {
-  "name": "ai-project-manager",
+  "name": "thedevelofurr",
   "displayName": "AI Project Manager",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Connect Claude Code to AI Project Manager for task and context management across your projects.",
   "userConfig": {
     "api_url": {
@@ -13,7 +13,7 @@
     "api_token": {
       "type": "string",
       "title": "API Token",
-      "description": "Your JWT API token from the AI Project Manager web app (Settings → MCP)",
+      "description": "Your API token from the AI Project Manager web app (Project → Settings → MCP → Create Token)",
       "sensitive": true,
       "required": true
     }
