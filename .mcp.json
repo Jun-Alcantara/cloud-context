@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ai-project-manager": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server.js"],
+      "env": {
+        "API_URL": "${user_config.api_url}",
+        "API_TOKEN": "${user_config.api_token}",
+        "PROJECT_DIR": "${CLAUDE_PROJECT_DIR}"
+      }
+    }
+  }
+}
