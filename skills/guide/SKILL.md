@@ -10,20 +10,22 @@ This plugin connects Claude Code to the **AI Project Manager** web app, enabling
 
 ## How it works
 
-1. **Install** — The plugin prompts for your API URL and token (one-time setup, stored securely).
-2. **Link a directory** — Each repository needs a `.ai-project-manager.json` file linking it to a project in the web app.
-3. **Use tools** — Once linked, Claude has access to kanban boards and project info.
+1. **Install** — Provide an API token once. It identifies your *account*, so it
+   reaches every project you belong to.
+2. **Link a directory** — Pick a project by name; the link is stored server-side
+   against this directory's path, not in a local file.
+3. **Use tools** — The kanban tools appear the moment a link exists.
 
 ## Setup
 
 ### First-time install
 
 When you first enable the plugin, the only thing you're asked for is:
-- **API Token** — Generate this in the web app: Project → Settings → MCP → Create Token
+- **API Token** — Generate this in the web app: **Settings → MCP → Create Token**
 
 Give it to the plugin one of three ways — never by pasting it into a
 conversation, since it's a credential. A token that ends up in chat should be
-revoked in the web app and replaced. Only the *project ID* is safe to paste.
+revoked in the web app and replaced.
 
 | Route | Use when |
 |---|---|
@@ -41,37 +43,48 @@ effect and its origin (`api_url` / `api_url_source`).
 
 ### Linking a directory to a project
 
-If `.ai-project-manager.json` doesn't exist in the current directory:
+No UUID is involved. Call `list_projects`, offer the `suggested` one as the
+default if there is one, and call `link_project` with what the user picks. See
+the `/thedevelofurr:setup` command for the exact wording.
 
-1. Run `diagnostics` and give the user the `connect_url` it reports (the web app's
-   `/connect` page). It lists every project they own or belong to, each with a
-   **Copy project ID** button.
-2. Ask the user to paste the copied ID back
-3. Run `setup_project` with that ID — the config file will be written automatically
-4. All tools become available immediately
-
-The project ID is also visible in the web app URL (`/projects/<PROJECT_ID>`) if the
-connect page isn't reachable.
+The link is keyed on this directory's path and stored server-side, so it
+survives restarts and reinstalls. Renaming or moving the directory breaks it —
+`current_project` then reports `{linked: false}` and setup simply runs again.
 
 ## Available tools
 
+### list_projects (always available)
+Every project this account can reach, newest first, with board counts. At most
+one is flagged `suggested` with a `suggestedReason` — `git-remote` (another
+directory with the same remote is already linked to it), `directory-name`, or
+`only-project`. Offer that one instead of asking the user to choose blind. An
+empty list means the account has no projects yet — not a connection problem.
+
+### link_project (always available)
+Binds this directory to a project. Takes `project_id` from `list_projects`.
+Relinking replaces the previous link, so correcting a wrong choice needs no
+unlink first.
+
+### current_project (always available)
+What this directory resolves to. `{linked: false, hint}` is a normal answer —
+unlinked, renamed, moved, or the project is gone. Re-run setup rather than
+reporting a failure.
+
+### unlink_project (linked directories)
+Forgets the link. Touches nothing else — not the project, not its data.
+
 ### diagnostics (always available)
-Health report — checks backend connectivity, auth validity, and whether this directory is linked to a project. Use this first when something isn't working.
+Health report — token source, connectivity, the workspace path and git remote
+being reported, and what this directory is linked to. Use this first when
+something isn't working.
 
 ### reset_connection (always available)
-Drops the current backend session and reconnects — the fix for session/connection
-errors. With `unlink: true` it also deletes `.ai-project-manager.json`, so the
-directory can be linked to a different project. It never touches the API token or
-any server-side data.
+Drops the backend session and reconnects — the fix for session/connection
+errors. It does **not** change the link; use `unlink_project` for that.
 
-### setup_project (unconfigured directories)
-Links this directory to a project in the web app. Requires the project UUID from the web app's URL.
-
-### get_project_info (configured directories)
-Returns the project's name, description, and kanban board count.
-
-### kanban (configured directories)
-Full kanban board management — boards, columns, tasks, and comments. Use the `kanban` skill for detailed workflow guidance.
+### get_project_info · kanban_manage (linked directories)
+Project details and full kanban management — boards, columns, tasks, comments.
+Use the `kanban` skill for workflow guidance.
 
 ## Troubleshooting
 
@@ -89,11 +102,11 @@ setup cannot be completed at all — say so instead of leaving the user waiting.
 ### "API token rejected" or "401 Unauthorized"
 Run `diagnostics` and read the `token` and `token_owner` fields before advising anything:
 
-- `token.present: false` → the plugin's user config has no token. Run `/plugin`, set it, restart.
+- `token.present: false` → no token anywhere. Set one via `/plugin` or the token file, then restart.
 - `token_owner.valid: false` → the backend doesn't recognise it. It was revoked, or only partly
-  pasted (check `token.looks_truncated`). Create a new one under Project → Settings → MCP.
-- `token_owner.projectId` different from the linked project → the token is for another project.
-  Either link that project, or create a token for this one. `diagnostics` states this in `problem`.
+  pasted (check `token.looks_truncated`). Create a new one under Settings → MCP.
+- `token_owner.scope: "project"` → a legacy project-scoped token. It works, but only reaches the
+  one project it was issued for. An account token reaches all of them.
 
 **A changed token only takes effect after Claude Code restarts** — the token is passed to the MCP
 server as an environment variable at launch. If a fresh token still fails, check whether the server
@@ -106,11 +119,19 @@ connect attempt, HTTP status and error body, with tokens redacted to their prefi
 ### "Backend unreachable"
 Make sure your AI Project Manager backend is running at the configured API URL. Check the URL in plugin settings.
 
-### ".ai-project-manager.json not found"
-This directory hasn't been linked to a project yet. Use the `setup_project` tool with your project's UUID from the web app.
+### This directory isn't linked
+`current_project` returns `{linked: false}` when the directory was never linked,
+or was renamed or moved since. Run `list_projects` and `link_project` again —
+it's a two-step fix, not an error to report.
+
+### A leftover .ai-project-manager.json
+Versions before 0.9.0 stored the link in that file. It's now ignored;
+`diagnostics` reports it as `stale_local_config` so the user can delete it.
 
 ### Tools not showing up
-Run `diagnostics` to see the current state. If the config file exists but tools are missing, the project ID may be invalid.
+Run `diagnostics`. If `api_auth_valid` is false the token is the problem; if the
+directory simply isn't linked, only the linking tools appear — that's expected,
+and `link_project` makes the rest materialise.
 
 ### "SSE rpc failed: HTTP 404" / "Session not found"
 The backend forgot the session — it keeps them in memory, so a backend restart or

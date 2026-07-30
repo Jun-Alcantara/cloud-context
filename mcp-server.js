@@ -145,23 +145,15 @@ function send(response) {
   logStderr("→ " + json.slice(0, 200));
 }
 
+/**
+ * Only ever read now: the link moved to the server in 0.9.0. This exists to
+ * notice a leftover file from an older version and tell the user it's dead.
+ */
 function readConfig() {
   try {
     if (!fs.existsSync(CONFIG_FILE)) return null;
     return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
   } catch { return null; }
-}
-
-function writeConfig(projectId) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify({ projectId, createdAt: new Date().toISOString() }, null, 2) + "\n");
-  logStderr(`Wrote config: ${CONFIG_FILE}`);
-}
-
-function deleteConfig() {
-  if (!fs.existsSync(CONFIG_FILE)) return false;
-  fs.unlinkSync(CONFIG_FILE);
-  logStderr(`Removed config: ${CONFIG_FILE}`);
-  return true;
 }
 
 // ── SSE Proxy client ──────────────────────────────────────────────────────
@@ -192,12 +184,33 @@ function resetSession(reason) {
 }
 
 /** Connect if needed, and never open two sessions for concurrent callers. */
-async function ensureSession(projectId) {
+async function ensureSession() {
   if (sseSessionUrl) return;
   if (!sseConnecting) {
-    sseConnecting = connectSSE(projectId).finally(() => { sseConnecting = null; });
+    sseConnecting = connectSSE().finally(() => { sseConnecting = null; });
   }
   await sseConnecting;
+}
+
+/**
+ * The workspace identifies this directory to the backend, which holds the link
+ * between it and a project. The git remote is the better key of the two — two
+ * checkouts named `api` are ambiguous, their remotes are not — so read it if
+ * this is a repository. Parsing `.git/config` directly avoids shelling out to
+ * git, which may not be installed, and keeps the bridge dependency-free.
+ */
+function readGitRemote() {
+  try {
+    const configPath = path.join(PROJECT_DIR, ".git", "config");
+    if (!fs.existsSync(configPath)) return null;
+    const config = fs.readFileSync(configPath, "utf-8");
+    const section = config.match(/\[remote "origin"\]([\s\S]*?)(?=\n\[|$)/);
+    if (!section) return null;
+    const url = section[1].match(/^\s*url\s*=\s*(.+)$/m);
+    return url ? url[1].trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function httpFetch(url, options) {
@@ -222,9 +235,13 @@ function httpFetch(url, options) {
   });
 }
 
-async function connectSSE(projectId) {
+async function connectSSE() {
   return new Promise((resolve, reject) => {
-    const parsed = new URL(`${API_URL}/api/projects/${projectId}/mcp/sse`);
+    const query = new URLSearchParams({ workspace: PROJECT_DIR, host: os.hostname() });
+    const remote = readGitRemote();
+    if (remote) query.set("remote", remote);
+
+    const parsed = new URL(`${API_URL}/api/mcp/sse?${query.toString()}`);
     const mod = parsed.protocol === "https:" ? https : http;
 
     const token = tokenSummary();
@@ -250,7 +267,7 @@ async function connectSSE(projectId) {
           });
           return;
         }
-        logStderr(`SSE connect accepted: HTTP 200 for project ${projectId}`);
+        logStderr(`SSE connect accepted: HTTP 200 for workspace ${PROJECT_DIR}`);
 
         let buffer = "";
         let eventType = "";
@@ -279,6 +296,11 @@ async function connectSSE(projectId) {
                   if (reqId && ssePendingRequests.has(reqId)) {
                     ssePendingRequests.get(reqId)(msg);
                     ssePendingRequests.delete(reqId);
+                  } else if (!reqId && msg.method) {
+                    // Server-initiated notification — tools/list_changed when a
+                    // link lands. Pass it through so the kanban tools appear
+                    // without the user restarting anything.
+                    send(msg);
                   }
                 } catch (e) {
                   logStderr(`SSE parse error: ${e.message}`);
@@ -359,14 +381,14 @@ async function sseRpc(method, params) {
  * A 404 on the messages endpoint means exactly that — usually a backend
  * restart — and it's recoverable without the user restarting Claude Code.
  */
-async function sseRpcWithRetry(projectId, method, params) {
-  await ensureSession(projectId);
+async function sseRpcWithRetry(method, params) {
+  await ensureSession();
   try {
     return await sseRpc(method, params);
   } catch (err) {
     if (err.statusCode !== 404) throw err;
     resetSession("backend reported an unknown session (404)");
-    await ensureSession(projectId);
+    await ensureSession();
     return await sseRpc(method, params);
   }
 }
@@ -421,24 +443,53 @@ function readLogTail(lines) {
 }
 
 // ── Diagnostics ───────────────────────────────────────────────────────────
-async function checkApiConnectivity(projectId) {
-  if (!projectId) {
-    // No project linked yet: no scoped endpoint to authenticate against,
-    // so just confirm the backend itself is up.
+async function checkApiConnectivity() {
+  // The session is account-scoped, so connecting proves both reachability and
+  // a working token without needing to know a project first.
+  try {
+    await ensureSession();
+    return { reachable: true, auth_valid: true, error: null };
+  } catch (err) {
+    if (err.statusCode === 401) {
+      return { reachable: true, auth_valid: false, error: err.message };
+    }
     try {
       await httpFetch(`${API_URL}/`, { method: "GET", headers: {} });
-      return { reachable: true, auth_valid: null, error: null };
-    } catch (err) {
+      return { reachable: true, auth_valid: null, error: err.message };
+    } catch {
       return { reachable: false, auth_valid: null, error: err.message };
     }
   }
+}
 
+/** What the backend says this directory is linked to, if anything. */
+async function fetchCurrentProject() {
   try {
-    await ensureSession(projectId);
-    return { reachable: true, auth_valid: true, error: null };
+    const result = await sseRpcWithRetry("tools/call", {
+      name: "current_project",
+      arguments: {},
+    });
+    const text = result.result?.content?.[0]?.text;
+    return text ? JSON.parse(text) : null;
   } catch (err) {
-    return { reachable: false, auth_valid: false, error: err.message };
+    logStderr(`current_project failed: ${err.message}`);
+    return null;
   }
+}
+
+/**
+ * Directories linked before 0.9.0 have a local config file that no longer means
+ * anything — the link lives on the server now. Report it so the user can delete
+ * it, rather than leaving a file that looks like configuration but isn't.
+ */
+function staleConfigNotice() {
+  const config = readConfig();
+  if (!config?.projectId) return null;
+  return {
+    path: CONFIG_FILE,
+    project_id: config.projectId,
+    note: "Left over from an older version. The link now lives on the server — this file is ignored and can be deleted.",
+  };
 }
 
 // ── MCP message handler ───────────────────────────────────────────────────
@@ -453,12 +504,15 @@ async function handleMessage(msg) {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "ai-project-manager", version: "0.8.1" },
+          serverInfo: { name: "ai-project-manager", version: "0.9.0" },
           instructions:
             "This plugin connects to the AI Project Manager backend via MCP/SSE. " +
-            "If no project is linked, use `setup_project` first. " +
-            "Run `diagnostics` to check connectivity, and `reset_connection` to recover from " +
-            "session or connection errors (with unlink: true to link a different project).",
+            "The link between this directory and a project lives on the server: call " +
+            "`current_project` to see it, `list_projects` to see what's available (one may " +
+            "be flagged `suggested` — offer it as the default), and `link_project` to bind " +
+            "this directory. Never ask the user to paste an API token into the chat. " +
+            "Run `diagnostics` to check connectivity, and `reset_connection` to recover " +
+            "from session errors.",
         },
       };
 
@@ -466,14 +520,12 @@ async function handleMessage(msg) {
       return null;
 
     case "tools/list": {
-      const config = readConfig();
-
       // Local tools stay listed whether or not a project is linked — they are
       // the only way to diagnose or recover a broken connection.
       const localTools = [
         {
           name: "diagnostics",
-          description: `Health report for the plugin. Config file: ${CONFIG_FILE}`,
+          description: `Health report for the plugin: token, connectivity, and what this directory (${PROJECT_DIR}) is linked to.`,
           inputSchema: { type: "object", properties: {} },
         },
         {
@@ -490,46 +542,17 @@ async function handleMessage(msg) {
           name: "reset_connection",
           description:
             "Reset the connection to the AI Project Manager backend: drops the current session and reconnects. " +
-            "Use when tool calls fail with session/connection errors. " +
-            "Pass unlink: true to also forget which project this directory is linked to, so setup_project can link a different one.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              unlink: {
-                type: "boolean",
-                description: `Also delete ${CONFIG_FILE}, unlinking this directory from its project. Default false.`,
-              },
-            },
-          },
+            "Use when tool calls fail with session/connection errors. To change which project this " +
+            "directory is linked to, use unlink_project and link_project instead — those act on the " +
+            "server-side link and are not affected by this.",
+          inputSchema: { type: "object", properties: {} },
         },
       ];
 
-      if (!config?.projectId) {
-        return {
-          jsonrpc: "2.0",
-          id,
-          result: {
-            tools: [
-              ...localTools,
-              {
-                name: "setup_project",
-                description: `Link this directory to a project. Config written to ${CONFIG_FILE}. Get the project ID from the connect page reported by diagnostics (connect_url) — it lists the user's projects with a copy button per ID.`,
-                inputSchema: {
-                  type: "object",
-                  properties: {
-                    projectId: { type: "string", description: "Project UUID the user copied from the connect page (also visible in the web app URL: /projects/<ID>)" },
-                  },
-                  required: ["projectId"],
-                },
-              },
-            ],
-          },
-        };
-      }
-
-      // Connected: proxy tools/list to backend, alongside the local tools
+      // The backend decides which project tools exist: the linking tools are
+      // always there, the kanban tools appear once the directory resolves.
       try {
-        const result = await sseRpcWithRetry(config.projectId, "tools/list", {});
+        const result = await sseRpcWithRetry("tools/list", {});
         const remoteTools = result.result?.tools ?? [];
         return { jsonrpc: "2.0", id, result: { tools: [...remoteTools, ...localTools] } };
       } catch (err) {
@@ -556,11 +579,11 @@ async function handleMessage(msg) {
       }
 
       if (toolName === "diagnostics") {
-        const config = readConfig();
-        const connectivity = await checkApiConnectivity(config?.projectId);
-        const connectUrl = config?.projectId ? null : await fetchConnectUrl();
+        const connectivity = await checkApiConnectivity();
         const token = tokenSummary();
         const whoami = await fetchWhoami();
+        const current = connectivity.auth_valid ? await fetchCurrentProject() : null;
+        const connectUrl = current?.linked ? null : await fetchConnectUrl();
 
         // Name the one thing blocking setup, in the order the user hits them:
         // no token at all, then a token that isn't for this project.
@@ -573,16 +596,12 @@ async function handleMessage(msg) {
             `Anywhere else (including the desktop app): write it to ${TOKEN_FILE} ` +
             `(\`mkdir -p ${path.dirname(TOKEN_FILE)} && printf %s '<token>' > ${TOKEN_FILE} && chmod 600 ${TOKEN_FILE}\`). ` +
             "Restart the app afterwards.";
-        } else if (
-          // Only project-scoped tokens can be pinned to the "wrong" project.
-          // An account token reports no projectId — comparing it here produced
-          // a bogus mismatch against `undefined`.
-          whoami.valid &&
-          whoami.projectId &&
-          config?.projectId &&
-          whoami.projectId !== config.projectId
-        ) {
-          problem = `Token belongs to project "${whoami.projectName}" (${whoami.projectId}), but this directory is linked to ${config.projectId}. Link that project instead, or create a token for this one.`;
+        } else if (whoami.checked && whoami.valid === false) {
+          problem = `The backend rejected this token (${whoami.message ?? "rejected"}). Create a fresh one under Settings → MCP.`;
+        } else if (whoami.valid && whoami.scope === "project") {
+          problem =
+            `This is a project-scoped token, so it can only reach "${whoami.projectName}". ` +
+            "An account token (Settings → MCP) reaches every project you belong to.";
         }
         return {
           jsonrpc: "2.0",
@@ -592,7 +611,7 @@ async function handleMessage(msg) {
               {
                 type: "text",
                 text: JSON.stringify({
-                  plugin_version: "0.8.1",
+                  plugin_version: "0.9.0",
                   api_url: API_URL,
                   api_url_source: API_URL_SOURCE,
                   api_reachable: connectivity.reachable,
@@ -600,23 +619,18 @@ async function handleMessage(msg) {
                   api_error: connectivity.error,
                   sse_connected: sseSessionUrl !== null,
                   log_file: LOG_FILE,
+                  workspace: { path: PROJECT_DIR, git_remote: readGitRemote() },
                   token,
                   token_owner: whoami,
                   problem,
-                  config_file: {
-                    path: CONFIG_FILE,
-                    exists: config !== null,
-                    valid: !!(config?.projectId),
-                  },
-                  project: config?.projectId
-                    ? { id: config.projectId, linked_at: config.createdAt }
+                  project: current?.linked
+                    ? current.project
                     : {
-                        hint: "Ask the user to open connect_url, copy a project ID, and paste it back. Then call setup_project with it.",
-                        connect_url: connectUrl,
-                        connect_url_error: connectUrl
-                          ? null
-                          : `Could not reach ${API_URL}/api/config — the backend may be down or too old to expose the web app URL.`,
+                        linked: false,
+                        hint: "Call list_projects, then link_project with the id the user picks. No UUID needs to be copied by hand.",
+                        web_app: connectUrl,
                       },
+                  stale_local_config: staleConfigNotice(),
                 }, null, 2),
               },
             ],
@@ -625,38 +639,18 @@ async function handleMessage(msg) {
       }
 
       if (toolName === "reset_connection") {
-        const unlink = toolArgs.unlink === true;
-        resetSession(unlink ? "reset_connection (unlink)" : "reset_connection");
+        resetSession("reset_connection");
 
-        let unlinked = false;
-        if (unlink) {
-          try {
-            unlinked = deleteConfig();
-          } catch (err) {
-            return {
-              jsonrpc: "2.0",
-              id,
-              result: {
-                content: [{ type: "text", text: JSON.stringify({ error: `Could not remove ${CONFIG_FILE}: ${err.message}` }, null, 2) }],
-                isError: true,
-              },
-            };
-          }
-        }
-
-        const config = readConfig();
         let reconnected = false;
         let reconnectError = null;
-
-        if (config?.projectId) {
-          try {
-            await ensureSession(config.projectId);
-            await sseRpc("tools/list", {});
-            reconnected = true;
-          } catch (err) {
-            reconnectError = err.message;
-            resetSession("reconnect after reset failed");
-          }
+        let current = null;
+        try {
+          await ensureSession();
+          current = await fetchCurrentProject();
+          reconnected = true;
+        } catch (err) {
+          reconnectError = err.message;
+          resetSession("reconnect after reset failed");
         }
 
         send({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
@@ -670,15 +664,14 @@ async function handleMessage(msg) {
                 type: "text",
                 text: JSON.stringify({
                   session_cleared: true,
-                  unlinked: unlink ? unlinked : false,
-                  project: config?.projectId ?? null,
                   reconnected,
                   error: reconnectError,
-                  next: config?.projectId
-                    ? reconnected
+                  project: current?.linked ? current.project : null,
+                  next: reconnected
+                    ? current?.linked
                       ? "Connection is healthy again. Retry what failed."
-                      : "Reconnect failed — run diagnostics, and check that the backend is running and the API token is valid."
-                    : "This directory is no longer linked. Run setup_project with a project ID to link one.",
+                      : "Connected, but this directory isn't linked to a project. Call list_projects, then link_project."
+                    : "Reconnect failed — run diagnostics, and check that the backend is running and the API token is valid.",
                 }, null, 2),
               },
             ],
@@ -686,82 +679,10 @@ async function handleMessage(msg) {
         };
       }
 
-      if (toolName === "setup_project") {
-        const projectId = toolArgs.projectId;
-        // Validate by attempting SSE connection
-        try {
-          resetSession("switching project");
-          await connectSSE(projectId);
-          await sseRpc("tools/list", {}); // Verify connectivity
-          writeConfig(projectId);
-          send({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
-          return {
-            jsonrpc: "2.0",
-            id,
-            result: {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    success: true,
-                    message: "Project linked. All tools are now available.",
-                    config_file: CONFIG_FILE,
-                  }, null, 2),
-                },
-              ],
-            },
-          };
-        } catch (err) {
-          // Work out *why* before answering: a 401 here is nearly always a
-          // token issued for a different project, which the error alone can't
-          // tell you.
-          const token = tokenSummary();
-          const whoami = err.statusCode === 401 ? await fetchWhoami() : { checked: false };
-
-          let hint;
-          if (!token.present) {
-            hint = `No API token is configured: ${token.reason}. Run /plugin, set the token, then retry.`;
-          } else if (whoami.valid && whoami.projectId !== projectId) {
-            hint = `Your token is valid but belongs to project "${whoami.projectName}" (${whoami.projectId}), not ${projectId}. Either link that project instead, or create a token for this one in the web app (Project → Settings → MCP).`;
-          } else if (whoami.checked && whoami.valid === false) {
-            hint = `The backend does not recognise this token (${whoami.message ?? "rejected"}). It may have been revoked or only partially copied — create a fresh one under Project → Settings → MCP and paste the whole value.`;
-          } else {
-            hint = `Check the project ID and that the backend at ${API_URL} is running. Run read_log to see the full exchange.`;
-          }
-
-          return {
-            jsonrpc: "2.0",
-            id,
-            result: {
-              content: [{ type: "text", text: JSON.stringify({
-                error: `Could not link project: ${err.message}`,
-                status: err.statusCode ?? null,
-                token,
-                token_owner: whoami,
-                hint,
-                log_file: LOG_FILE,
-              }, null, 2) }],
-              isError: true,
-            },
-          };
-        }
-      }
-
-      // Proxy other tools to backend
+      // Everything else — including list_projects / link_project — is the
+      // backend's. It owns the link, so it decides what this directory reaches.
       try {
-        const config = readConfig();
-        if (!config?.projectId) {
-          return {
-            jsonrpc: "2.0",
-            id,
-            result: {
-              content: [{ type: "text", text: JSON.stringify({ error: "No project linked. Run setup_project first." }) }],
-              isError: true,
-            },
-          };
-        }
-
-        const result = await sseRpcWithRetry(config.projectId, "tools/call", {
+        const result = await sseRpcWithRetry("tools/call", {
           name: toolName,
           arguments: toolArgs,
         });
