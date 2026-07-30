@@ -453,7 +453,7 @@ async function handleMessage(msg) {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "ai-project-manager", version: "0.8.0" },
+          serverInfo: { name: "ai-project-manager", version: "0.8.1" },
           instructions:
             "This plugin connects to the AI Project Manager backend via MCP/SSE. " +
             "If no project is linked, use `setup_project` first. " +
@@ -573,7 +573,15 @@ async function handleMessage(msg) {
             `Anywhere else (including the desktop app): write it to ${TOKEN_FILE} ` +
             `(\`mkdir -p ${path.dirname(TOKEN_FILE)} && printf %s '<token>' > ${TOKEN_FILE} && chmod 600 ${TOKEN_FILE}\`). ` +
             "Restart the app afterwards.";
-        } else if (whoami.valid && config?.projectId && whoami.projectId !== config.projectId) {
+        } else if (
+          // Only project-scoped tokens can be pinned to the "wrong" project.
+          // An account token reports no projectId — comparing it here produced
+          // a bogus mismatch against `undefined`.
+          whoami.valid &&
+          whoami.projectId &&
+          config?.projectId &&
+          whoami.projectId !== config.projectId
+        ) {
           problem = `Token belongs to project "${whoami.projectName}" (${whoami.projectId}), but this directory is linked to ${config.projectId}. Link that project instead, or create a token for this one.`;
         }
         return {
@@ -584,7 +592,7 @@ async function handleMessage(msg) {
               {
                 type: "text",
                 text: JSON.stringify({
-                  plugin_version: "0.8.0",
+                  plugin_version: "0.8.1",
                   api_url: API_URL,
                   api_url_source: API_URL_SOURCE,
                   api_reachable: connectivity.reachable,
