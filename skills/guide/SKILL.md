@@ -21,9 +21,18 @@ This plugin connects Claude Code to the **AI Project Manager** web app, enabling
 When you first enable the plugin, the only thing you're asked for is:
 - **API Token** — Generate this in the web app: Project → Settings → MCP → Create Token
 
-Enter it through `/plugin` (select **AI Project Manager**), never by pasting it
-into a conversation — it's a credential. A token that ends up in chat should be
+Give it to the plugin one of three ways — never by pasting it into a
+conversation, since it's a credential. A token that ends up in chat should be
 revoked in the web app and replaced. Only the *project ID* is safe to paste.
+
+| Route | Use when |
+|---|---|
+| `/plugin` → AI Project Manager | You're in a terminal (needs a TTY) |
+| `~/.ai-project-manager/token` (chmod 600) | Desktop app, SDK, anywhere without `/plugin` |
+| `AIPM_API_TOKEN` env var | CI, containers, or a per-shell token |
+
+They're checked in that order. `diagnostics` reports which one supplied the
+token as `token.source`, and never echoes the value itself.
 
 The plugin talks to `https://thedevelofurr.online` out of the box. Developers
 and self-hosters can point it elsewhere by launching Claude Code with

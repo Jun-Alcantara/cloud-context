@@ -16,15 +16,26 @@ always that no API token is configured yet. Tell the user, verbatim in
 substance:
 
 > The plugin's tools aren't loaded yet, which means no API token is configured.
-> Open the web app → your project → **Settings → MCP → Create Token**, then run
-> `/plugin`, select **AI Project Manager**, and paste the token there. Restart
-> Claude Code and run `/thedevelofurr:setup` again.
+> Open the web app → your project → **Settings → MCP → Create Token**, then give
+> the token to the plugin one of these two ways — never by pasting it into this
+> chat:
 >
-> Paste the token into the `/plugin` dialog only — not into this chat.
+> - **In a terminal:** run `/plugin`, select **AI Project Manager**, paste it there.
+> - **Anywhere else (including the desktop app):** write it to
+>   `~/.ai-project-manager/token`:
+>
+>   ```
+>   mkdir -p ~/.ai-project-manager
+>   printf %s 'ppt_your_token_here' > ~/.ai-project-manager/token
+>   chmod 600 ~/.ai-project-manager/token
+>   ```
+>
+> Then restart the app and run `/thedevelofurr:setup` again.
 
-Then **stop**. `/plugin` needs an interactive terminal, so in a non-interactive
-session (piped input, an SDK run, the desktop app without a TTY) setup cannot
-be completed at all — say so plainly rather than leaving the user waiting.
+Then **stop**. The token file is the route to recommend whenever `/plugin` isn't
+available — it needs an interactive terminal, which a desktop or SDK session
+doesn't have. Say that plainly rather than leaving the user waiting on a dialog
+they can't open.
 
 If a token *is* configured and the tools are still missing, the server failed to
 start: point the user at Claude Code's MCP logs (`claude --debug`, or the MCP

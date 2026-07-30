@@ -24,7 +24,57 @@ function resolveApiUrl() {
 
 const { url: RESOLVED_API_URL, source: API_URL_SOURCE } = resolveApiUrl();
 const API_URL = RESOLVED_API_URL.replace(/\/$/, "");
-const API_TOKEN = process.env.API_TOKEN || "";
+
+const TOKEN_FILE =
+  process.env.AIPM_TOKEN_FILE || path.join(os.homedir(), ".ai-project-manager", "token");
+
+/**
+ * Where the API token comes from, highest precedence first:
+ *   1. API_TOKEN — the plugin's user config, set through the host's UI.
+ *   2. AIPM_API_TOKEN — the environment that launched the host.
+ *   3. A token file the user writes themselves.
+ *
+ * (2) and (3) exist because not every host can take a `sensitive` config value:
+ * `/plugin` needs an interactive terminal, and the desktop app has no
+ * equivalent dialog. Without a file-based route those users have no way in at
+ * all. A literal `${...}` means the host never substituted the config, so treat
+ * it as unset rather than sending nonsense as a bearer token.
+ */
+function resolveToken() {
+  const configured = (process.env.API_TOKEN || "").trim();
+  if (configured && !configured.includes("${")) {
+    return { token: configured, source: "plugin user config" };
+  }
+
+  const fromEnv = (process.env.AIPM_API_TOKEN || "").trim();
+  if (fromEnv) return { token: fromEnv, source: "AIPM_API_TOKEN env var" };
+
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const contents = fs.readFileSync(TOKEN_FILE, "utf-8").trim();
+      if (contents) {
+        // A credential readable by other accounts is worth flagging, but not
+        // worth refusing to start over — the user may be on a single-user box.
+        let worldReadable = false;
+        try {
+          worldReadable = (fs.statSync(TOKEN_FILE).mode & 0o077) !== 0;
+        } catch { /* mode is advisory */ }
+        return { token: contents, source: `token file (${TOKEN_FILE})`, worldReadable };
+      }
+    }
+  } catch (err) {
+    return { token: "", source: "none", fileError: `Could not read ${TOKEN_FILE}: ${err.message}` };
+  }
+
+  return {
+    token: "",
+    source: "none",
+    unsubstituted: configured.includes("${") ? configured : null,
+  };
+}
+
+const TOKEN_RESOLUTION = resolveToken();
+const API_TOKEN = TOKEN_RESOLUTION.token;
 const PROJECT_DIR = process.env.PROJECT_DIR || process.cwd();
 const CONFIG_FILE = path.join(PROJECT_DIR, ".ai-project-manager.json");
 const LOG_FILE =
@@ -46,20 +96,28 @@ function redact(text) {
 
 function tokenSummary() {
   if (!API_TOKEN) {
-    return { present: false, reason: "No API token is configured (API_TOKEN is empty) — set it via /plugin" };
-  }
-  if (API_TOKEN.includes("${")) {
+    const why = TOKEN_RESOLUTION.fileError
+      ? TOKEN_RESOLUTION.fileError
+      : TOKEN_RESOLUTION.unsubstituted
+        ? `the plugin's user config was not substituted (got the literal "${TOKEN_RESOLUTION.unsubstituted}")`
+        : "no API token is configured";
     return {
       present: false,
-      reason: `API_TOKEN was not substituted (got the literal "${API_TOKEN}") — the plugin's user config is not set`,
+      source: "none",
+      token_file: TOKEN_FILE,
+      reason: `No API token available — ${why}`,
     };
   }
   return {
     present: true,
+    source: TOKEN_RESOLUTION.source,
     prefix: API_TOKEN.slice(0, 14),
     length: API_TOKEN.length,
     format_ok: API_TOKEN.startsWith("ppt_"),
     looks_truncated: API_TOKEN.length < 40,
+    ...(TOKEN_RESOLUTION.worldReadable
+      ? { warning: `${TOKEN_FILE} is readable by other users — chmod 600 it` }
+      : {}),
   };
 }
 
@@ -395,7 +453,7 @@ async function handleMessage(msg) {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "ai-project-manager", version: "0.7.0" },
+          serverInfo: { name: "ai-project-manager", version: "0.8.0" },
           instructions:
             "This plugin connects to the AI Project Manager backend via MCP/SSE. " +
             "If no project is linked, use `setup_project` first. " +
@@ -510,8 +568,11 @@ async function handleMessage(msg) {
         if (!token.present) {
           problem =
             `${token.reason}. Create one in the web app (Project → Settings → MCP → Create Token), ` +
-            "then run /plugin, select AI Project Manager, and paste it there — not into the chat. " +
-            "Restart Claude Code afterwards.";
+            "then give it to the plugin one of two ways — never by pasting it into the chat. " +
+            "In a terminal: run /plugin, select AI Project Manager, paste it there. " +
+            `Anywhere else (including the desktop app): write it to ${TOKEN_FILE} ` +
+            `(\`mkdir -p ${path.dirname(TOKEN_FILE)} && printf %s '<token>' > ${TOKEN_FILE} && chmod 600 ${TOKEN_FILE}\`). ` +
+            "Restart the app afterwards.";
         } else if (whoami.valid && config?.projectId && whoami.projectId !== config.projectId) {
           problem = `Token belongs to project "${whoami.projectName}" (${whoami.projectId}), but this directory is linked to ${config.projectId}. Link that project instead, or create a token for this one.`;
         }
@@ -523,7 +584,7 @@ async function handleMessage(msg) {
               {
                 type: "text",
                 text: JSON.stringify({
-                  plugin_version: "0.7.0",
+                  plugin_version: "0.8.0",
                   api_url: API_URL,
                   api_url_source: API_URL_SOURCE,
                   api_reachable: connectivity.reachable,
