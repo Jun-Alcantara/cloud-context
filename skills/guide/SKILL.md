@@ -20,21 +20,25 @@ This plugin connects Claude Code to the **AI Project Manager** web app, enabling
 
 ### First-time install
 
-When you first enable the plugin, the only thing you're asked for is:
-- **API Token** — Generate this in the web app: **Settings → MCP → Create Token**
+**Nothing is pasted.** Call `connect_account`: it returns a URL, the user
+approves this machine in a browser where they're already signed in, and the
+plugin stores the resulting credential itself at `~/.ai-project-manager/token`
+(mode 600). The token is never displayed, so it can't end up in a transcript.
 
-Give it to the plugin one of three ways — never by pasting it into a
-conversation, since it's a credential. A token that ends up in chat should be
-revoked in the web app and replaced.
+**Never ask the user for a token.** If one appears in a conversation anyway,
+tell them to revoke it (Settings → MCP) and run `connect_account` instead.
+
+Tokens can still be supplied directly where a browser isn't available:
 
 | Route | Use when |
 |---|---|
-| `/plugin` → AI Project Manager | You're in a terminal (needs a TTY) |
-| `~/.ai-project-manager/token` (chmod 600) | Desktop app, SDK, anywhere without `/plugin` |
-| `AIPM_API_TOKEN` env var | CI, containers, or a per-shell token |
+| `connect_account` | **Default.** Anywhere with a browser. |
+| `AIPM_API_TOKEN` env var | CI and containers — no browser to approve in |
+| `/plugin` → AI Project Manager | Terminal, if browser approval fails |
+| `~/.ai-project-manager/token` | Manual fallback; this is where `connect_account` writes |
 
-They're checked in that order. `diagnostics` reports which one supplied the
-token as `token.source`, and never echoes the value itself.
+Precedence is plugin config → env var → token file. `diagnostics` reports which
+one supplied the token as `token.source`, and never echoes the value.
 
 The plugin talks to `https://thedevelofurr.online` out of the box. Developers
 and self-hosters can point it elsewhere by launching Claude Code with
@@ -73,6 +77,12 @@ reporting a failure.
 ### unlink_project (linked directories)
 Forgets the link. Touches nothing else — not the project, not its data.
 
+### connect_account (always available)
+Connects this machine to an account by browser approval: returns an
+`approval_url` and `code` to show the user, then stores the credential itself
+once they approve. Call it again to resume while it reports
+`waiting_for_approval`. Use it instead of ever asking for a token.
+
 ### diagnostics (always available)
 Health report — token source, connectivity, the workspace path and git remote
 being reported, and what this directory is linked to. Use this first when
@@ -89,15 +99,19 @@ Use the `kanban` skill for workflow guidance.
 ## Troubleshooting
 
 ### None of the plugin's tools exist
-If `diagnostics` itself is unavailable, the MCP server isn't running — usually
-because no API token is configured, so there is nothing to diagnose *with*.
-Don't go spelunking through `installed_plugins.json`, the plugin cache, or
-`mcp-server.js` to reconstruct the state. Tell the user to create a token
-(Project → Settings → MCP → Create Token), enter it via `/plugin`, and restart
-Claude Code.
+If `diagnostics` itself is unavailable, the MCP server isn't running at all —
+the plugin isn't installed or enabled. Don't go spelunking through
+`installed_plugins.json`, the plugin cache, or `mcp-server.js` to reconstruct
+the state; tell the user and stop.
 
-`/plugin` requires an interactive terminal. In a non-interactive session the
-setup cannot be completed at all — say so instead of leaving the user waiting.
+This is no longer the "no token" case: without a token the server still starts,
+and `connect_account` is there to fix it.
+
+### Browser approval doesn't complete
+`connect_account` returns `waiting_for_approval` until the user clicks Approve.
+Call it again to resume the same request — a new call after ten minutes starts a
+fresh one, and the old code stops working. If the user can't reach a browser at
+all (CI, a headless box), fall back to `AIPM_API_TOKEN`.
 
 ### "API token rejected" or "401 Unauthorized"
 Run `diagnostics` and read the `token` and `token_owner` fields before advising anything:

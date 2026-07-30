@@ -3,41 +3,50 @@ name: setup
 description: Set up or check the AI Project Manager link for this directory.
 ---
 
-Setting up needs two things, **in this order**:
+Setup is two clicks and one word. Nothing is copied or pasted:
 
-1. an **API token**, entered in the app's plugin settings — this starts the MCP
-   server and authenticates everything below;
-2. a **project**, which the user picks by name — no ID to copy.
+1. **Connect the account** — the user approves this machine in their browser.
+2. **Pick a project** — offered by name, usually just confirmed.
 
-**State 0 — no tools (check this first).** If `diagnostics` is not available to
-you, the plugin's MCP server is not running. Do not try to work around it, and
-do not go looking through the filesystem for its config. The cause is almost
-always that no API token is configured yet. Tell the user, verbatim in
-substance:
+**Never ask the user for an API token.** Not in the chat, not from a settings
+page. `connect_account` obtains one and stores it itself. A token that appears
+in a conversation must be revoked (Settings → MCP) and replaced.
 
-> The plugin's tools aren't loaded yet, which means no API token is configured.
-> Open the web app → **Settings → MCP → Create Token**, then give it to the
-> plugin one of these two ways — never by pasting it into this chat:
->
-> - **In a terminal:** run `/plugin`, select **AI Project Manager**, paste it there.
-> - **Anywhere else (including the desktop app):** write it to
->   `~/.ai-project-manager/token`:
->
->   ```
->   mkdir -p ~/.ai-project-manager
->   printf %s 'ppt_your_token_here' > ~/.ai-project-manager/token
->   chmod 600 ~/.ai-project-manager/token
->   ```
->
-> Then restart the app and run `/thedevelofurr:setup` again.
+Start by calling `current_project`, then match a case below.
 
-Then **stop**. Recommend the token file whenever `/plugin` isn't available — it
-needs an interactive terminal, which a desktop or SDK session doesn't have.
+---
 
-**Never ask the user to paste an API token into the conversation.** If one
-appears anyway, tell them to revoke it (Settings → MCP) and issue a new one.
+**If no tools exist at all.** `diagnostics` unavailable means the MCP server
+isn't running — the plugin isn't installed or enabled. Say that and stop; don't
+go looking through the filesystem for its config.
 
-Otherwise run `current_project` and pick the matching case.
+**If `diagnostics` reports no token** (`token.present: false`), or any call
+fails with 401:
+
+1. Call `connect_account`.
+2. It returns an `approval_url` and a `code`. Give the user the URL **as a
+   clickable link on its own line** and tell them to click **Approve** on that
+   page. Mention the code so they can confirm the page matches.
+3. Call `connect_account` again — it resumes the same request. Repeat while it
+   returns `waiting_for_approval`; the request is good for ten minutes.
+4. When it returns `connected: true`, carry straight on to picking a project.
+   Don't announce the token; there's nothing for the user to do with it.
+
+Example of step 2:
+
+```
+Approve this machine to connect:
+
+**https://thedevelofurr.online/connect/cli?code=6B7C-3RHZ**
+
+You're already signed in, so it's one click. Tell me when you've approved it
+(code 6B7C-3RHZ).
+```
+
+If `connect_account` fails outright — the backend is unreachable, or approval
+was denied — say so and offer the fallback: create a token in the web app
+(Settings → MCP) and set it via `/plugin` in a terminal, or write it to
+`~/.ai-project-manager/token`. That's the escape hatch, not the default.
 
 ---
 
@@ -71,9 +80,10 @@ that's not an error. Tell the user to create one in the web app, give them the
 link from `diagnostics` → `project.web_app`, and stop.
 
 **If the token is rejected** (`diagnostics` → `problem` says so): relay the
-problem verbatim and give the `/plugin` or token-file instructions from State 0.
-A project-scoped token still works but only reaches the one project it was
-issued for; suggest replacing it with an account token.
+problem verbatim, then call `connect_account` to get a fresh one — a revoked or
+mistyped token is fixed by reconnecting, not by asking the user for a new value.
+A project-scoped token still works but reaches only the project it was issued
+for; `connect_account` replaces it with an account token.
 
 **To move this directory to a different project:** `unlink_project`, then start
 again from `list_projects`. `reset_connection` only reconnects the session — it

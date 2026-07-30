@@ -73,13 +73,23 @@ function resolveToken() {
   };
 }
 
-const TOKEN_RESOLUTION = resolveToken();
-const API_TOKEN = TOKEN_RESOLUTION.token;
+// Mutable: browser approval can supply a token mid-session, and everything
+// downstream should start using it without a restart.
+let TOKEN_RESOLUTION = resolveToken();
+let API_TOKEN = TOKEN_RESOLUTION.token;
 const PROJECT_DIR = process.env.PROJECT_DIR || process.cwd();
 const CONFIG_FILE = path.join(PROJECT_DIR, ".ai-project-manager.json");
 const LOG_FILE =
   process.env.AIPM_LOG_FILE || path.join(os.tmpdir(), "ai-project-manager-plugin.log");
 const LOG_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * How long `connect_account` waits before answering. Short enough to stay well
+ * inside the host's tool timeout, long enough that a user who clicks straight
+ * away is connected by the first call. Calling again resumes the same request.
+ */
+const DEVICE_WAIT_MS = 60_000;
+let pendingDeviceAuth = null;
 
 // ── JSON-RPC helpers ──────────────────────────────────────────────────────
 const rl = readline.createInterface({ input: process.stdin });
@@ -462,6 +472,67 @@ async function checkApiConnectivity() {
   }
 }
 
+// ── Browser approval ──────────────────────────────────────────────────────
+/**
+ * Ask the backend for an approval code, then wait for the user to approve it in
+ * a browser where they are already signed in.
+ *
+ * This exists so a credential never passes through a clipboard, a terminal, or
+ * a chat transcript. The token is minted server-side on approval and delivered
+ * over this poll — the user never sees it, and neither does the conversation.
+ */
+async function startDeviceAuth() {
+  const res = await httpFetch(`${API_URL}/api/mcp/device/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      hostLabel: os.hostname(),
+      workspacePath: PROJECT_DIR,
+      clientLabel: "Claude Code plugin",
+    }),
+  });
+  if (res.status !== 201 && res.status !== 200) {
+    throw new Error(`Could not start browser approval: HTTP ${res.status} ${res.body.toString().slice(0, 200)}`);
+  }
+  return JSON.parse(res.body.toString());
+}
+
+async function pollDeviceAuth(deviceCode, { expiresAt, intervalMs }) {
+  const deadline = new Date(expiresAt).getTime();
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    let parsed;
+    try {
+      const res = await httpFetch(`${API_URL}/api/mcp/device/poll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceCode }),
+      });
+      parsed = JSON.parse(res.body.toString());
+    } catch (err) {
+      // A blip while the user is off in the browser shouldn't end the wait.
+      logStderr(`Device poll error (continuing): ${err.message}`);
+      continue;
+    }
+    if (parsed.status !== "pending") return parsed;
+  }
+  return { status: "expired" };
+}
+
+/**
+ * Persist the approved token so the next session starts already connected.
+ * 0600 from the start — never written world-readable and fixed afterwards.
+ */
+function writeTokenFile(token) {
+  const dir = path.dirname(TOKEN_FILE);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
+  try {
+    fs.chmodSync(TOKEN_FILE, 0o600);
+  } catch { /* best effort on filesystems without modes */ }
+  logStderr(`Wrote token file: ${TOKEN_FILE}`);
+}
+
 /** What the backend says this directory is linked to, if anything. */
 async function fetchCurrentProject() {
   try {
@@ -504,9 +575,12 @@ async function handleMessage(msg) {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "ai-project-manager", version: "0.9.0" },
+          serverInfo: { name: "ai-project-manager", version: "0.10.0" },
           instructions:
             "This plugin connects to the AI Project Manager backend via MCP/SSE. " +
+            "If no account is connected, call `connect_account` — it returns a URL the user " +
+            "approves in their browser, and stores the credential itself. Never ask the user " +
+            "to paste a token. " +
             "The link between this directory and a project lives on the server: call " +
             "`current_project` to see it, `list_projects` to see what's available (one may " +
             "be flagged `suggested` — offer it as the default), and `link_project` to bind " +
@@ -537,6 +611,15 @@ async function handleMessage(msg) {
               lines: { type: "number", description: "How many trailing lines to return. Default 80." },
             },
           },
+        },
+        {
+          name: "connect_account",
+          description:
+            "Connect this machine to an AI Project Manager account by approving it in the browser. " +
+            "Returns a URL for the user to open; they approve there and this stores the resulting " +
+            "credential itself. Use this whenever no token is configured — never ask the user to " +
+            "paste a token into the conversation. Takes up to 10 minutes while it waits for approval.",
+          inputSchema: { type: "object", properties: {} },
         },
         {
           name: "reset_connection",
@@ -590,12 +673,9 @@ async function handleMessage(msg) {
         let problem = null;
         if (!token.present) {
           problem =
-            `${token.reason}. Create one in the web app (Project → Settings → MCP → Create Token), ` +
-            "then give it to the plugin one of two ways — never by pasting it into the chat. " +
-            "In a terminal: run /plugin, select AI Project Manager, paste it there. " +
-            `Anywhere else (including the desktop app): write it to ${TOKEN_FILE} ` +
-            `(\`mkdir -p ${path.dirname(TOKEN_FILE)} && printf %s '<token>' > ${TOKEN_FILE} && chmod 600 ${TOKEN_FILE}\`). ` +
-            "Restart the app afterwards.";
+            `${token.reason}. Call connect_account — it returns a URL the user approves in the ` +
+            "browser, and stores the credential here automatically. Do not ask the user to paste " +
+            "a token into the chat, and do not send them to /plugin unless browser approval fails.";
         } else if (whoami.checked && whoami.valid === false) {
           problem = `The backend rejected this token (${whoami.message ?? "rejected"}). Create a fresh one under Settings → MCP.`;
         } else if (whoami.valid && whoami.scope === "project") {
@@ -611,7 +691,7 @@ async function handleMessage(msg) {
               {
                 type: "text",
                 text: JSON.stringify({
-                  plugin_version: "0.9.0",
+                  plugin_version: "0.10.0",
                   api_url: API_URL,
                   api_url_source: API_URL_SOURCE,
                   api_reachable: connectivity.reachable,
@@ -636,6 +716,89 @@ async function handleMessage(msg) {
             ],
           },
         };
+      }
+
+      if (toolName === "connect_account") {
+        // Returns after a bounded wait rather than blocking for the full ten
+        // minutes: the model gets a URL to show immediately, and calling again
+        // resumes the same request instead of invalidating it.
+        try {
+          if (!pendingDeviceAuth || Date.now() >= new Date(pendingDeviceAuth.expiresAt).getTime()) {
+            const started = await startDeviceAuth();
+            pendingDeviceAuth = {
+              deviceCode: started.deviceCode,
+              userCode: started.userCode,
+              verificationUrl: started.verificationUrl,
+              expiresAt: started.expiresAt,
+              intervalMs: (started.pollIntervalSeconds ?? 2) * 1000,
+            };
+            logStderr(`Device authorization started: ${started.userCode}`);
+          }
+
+          const waitUntil = Math.min(
+            Date.now() + DEVICE_WAIT_MS,
+            new Date(pendingDeviceAuth.expiresAt).getTime(),
+          );
+          const result = await pollDeviceAuth(pendingDeviceAuth.deviceCode, {
+            expiresAt: new Date(waitUntil).toISOString(),
+            intervalMs: pendingDeviceAuth.intervalMs,
+          });
+
+          if (result.status === "approved") {
+            writeTokenFile(result.token);
+            API_TOKEN = result.token;
+            TOKEN_RESOLUTION = { token: result.token, source: `token file (${TOKEN_FILE})` };
+            pendingDeviceAuth = null;
+            resetSession("connected a new account");
+            send({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: JSON.stringify({
+                  connected: true,
+                  stored_at: TOKEN_FILE,
+                  next: "Connected. Call list_projects and link this directory to one.",
+                }, null, 2) }],
+              },
+            };
+          }
+
+          const stillWaiting = result.status === "pending" || result.status === "expired";
+          if (result.status === "denied" || result.status === "unknown") {
+            pendingDeviceAuth = null;
+          }
+
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [{ type: "text", text: JSON.stringify({
+                connected: false,
+                status: stillWaiting ? "waiting_for_approval" : result.status,
+                approval_url: pendingDeviceAuth?.verificationUrl ?? null,
+                code: pendingDeviceAuth?.userCode ?? null,
+                next: stillWaiting
+                  ? "Give the user the approval_url as a clickable link and ask them to click Approve. Then call connect_account again to finish — it resumes the same request."
+                  : result.status === "denied"
+                    ? "The request was denied. Call connect_account again to start a new one."
+                    : "That request is no longer valid. Call connect_account again.",
+              }, null, 2) }],
+            },
+          };
+        } catch (err) {
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [{ type: "text", text: JSON.stringify({
+                error: err.message,
+                hint: `Could not reach ${API_URL}. Check the backend is up; read_log has the full exchange.`,
+              }, null, 2) }],
+              isError: true,
+            },
+          };
+        }
       }
 
       if (toolName === "reset_connection") {
