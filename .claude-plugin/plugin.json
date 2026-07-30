@@ -1,15 +1,9 @@
 {
   "name": "thedevelofurr",
   "displayName": "AI Project Manager",
-  "version": "0.2.1",
+  "version": "0.6.0",
   "description": "Connect Claude Code to AI Project Manager for task and context management across your projects.",
   "userConfig": {
-    "api_url": {
-      "type": "string",
-      "title": "API URL",
-      "description": "The URL of your AI Project Manager backend",
-      "default": "http://localhost:3001"
-    },
     "api_token": {
       "type": "string",
       "title": "API Token",

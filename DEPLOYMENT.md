@@ -9,13 +9,24 @@ The plugin is only distributed via a **local marketplace**: the repo root has
 installs where the user has this repo checked out locally at a known path —
 there is no public/hosted marketplace yet.
 
-`api_url` has no separate env-var override — it's sourced entirely from the
-plugin's `userConfig.api_url` (see `.mcp.json`'s
-`"API_URL": "${user_config.api_url}"`), which defaults to
-`http://localhost:3001`. Decision (2026-07-27): leave this default as-is for
-now rather than pointing it at production. Anyone using the plugin against the
-live backend at `https://thedevelofurr.online/` must set that manually via
-`/plugin config thedevelofurr` after installing.
+**The backend URL is not user config.** As of 2026-07-30 (v0.6.0) the plugin
+ships pointing at `https://thedevelofurr.online`, hardcoded as
+`DEFAULT_API_URL` in `mcp-server.js`; installing asks only for an API token,
+the way any other app works. This replaced two earlier positions in quick
+succession: a `userConfig.api_url` defaulting to `http://localhost:3001`
+(sensible only while the plugin was installed from a local checkout), then the
+same field defaulting to production. Both asked users a question they have no
+way to answer.
+
+Developers and self-hosters override it with the `AIPM_API_URL` env var in the
+environment that launches Claude Code:
+
+```
+AIPM_API_URL=http://localhost:3001 claude
+```
+
+`diagnostics` reports the URL in effect and its origin (`api_url` /
+`api_url_source`).
 
 ## Updating an existing local install
 
@@ -26,29 +37,24 @@ After editing anything under `ai-project-manager-plugin/` (commands, skills,
 2. On any machine with the plugin installed: `/plugin marketplace update junalcantara`
 3. Restart Claude Code to pick up the new commands/skills/MCP server code.
 
-## Publishing for real (not yet done)
+## Public distribution (since 2026-07-30)
 
-To let people install this without cloning the repo, the marketplace
-definition needs to live somewhere fetchable independent of a local path —
-e.g. a dedicated public git repo (or this repo made public) containing (or
-pointing to) `.claude-plugin/marketplace.json`. Once that exists, installs
-become:
+The plugin is published from the public repo
+[`Jun-Alcantara/cloud-context`](https://github.com/Jun-Alcantara/cloud-context),
+which holds a copy of this directory at its root plus its own
+`.claude-plugin/marketplace.json` (same marketplace name, `junalcantara`).
+End users install with:
 
 ```
-/plugin marketplace add <git-url-or-repo-slug>
+/plugin marketplace add Jun-Alcantara/cloud-context
 /plugin install thedevelofurr@junalcantara
 ```
 
-Steps not yet done, in rough order:
-1. Decide where the marketplace source lives (public repo, or a dedicated
-   marketplace-only repo referencing this plugin).
-2. Confirm the plugin directory is self-contained (no relative imports
-   outside `ai-project-manager-plugin/`) so it can be referenced from a
-   separate marketplace repo if needed.
-3. Re-check whether `api_url`'s default should change once there's a
-   non-technical audience installing it (currently left as `localhost:3001`
-   per the decision above — revisit if that causes confusion for non-dev
-   users).
-4. Write install instructions for end users (README section or a docs site),
-   including how to generate a project API token (Project → Settings → MCP →
-   Create Token in the web app).
+This directory stays the source of truth. To ship a change: bump `version` in
+`.claude-plugin/plugin.json`, copy this directory's contents over the root of a
+`cloud-context` checkout (keeping that repo's `README.md`, `DEPLOYMENT.md`, and
+`.claude-plugin/marketplace.json`), commit, and push to `main` — Claude Code
+installs from the default branch only.
+
+Note both marketplaces are named `junalcantara`, so a single machine should add
+either the local one or `cloud-context`, not both.

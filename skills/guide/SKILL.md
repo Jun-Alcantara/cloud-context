@@ -18,22 +18,38 @@ This plugin connects Claude Code to the **AI Project Manager** web app, enabling
 
 ### First-time install
 
-When you first enable the plugin, you'll be prompted for:
-- **API URL** — The URL of your AI Project Manager backend (default: `http://localhost:3001`)
+When you first enable the plugin, the only thing you're asked for is:
 - **API Token** — Generate this in the web app: Project → Settings → MCP → Create Token
+
+The plugin talks to `https://thedevelofurr.online` out of the box. Developers
+and self-hosters can point it elsewhere by launching Claude Code with
+`AIPM_API_URL=http://localhost:3001 claude`; `diagnostics` reports the URL in
+effect and its origin (`api_url` / `api_url_source`).
 
 ### Linking a directory to a project
 
 If `.ai-project-manager.json` doesn't exist in the current directory:
 
-1. Find the project ID in the web app — it's in the URL: `/projects/<PROJECT_ID>`
-2. Run `setup_project` with that ID — the config file will be written automatically
-3. All tools become available immediately
+1. Run `diagnostics` and give the user the `connect_url` it reports (the web app's
+   `/connect` page). It lists every project they own or belong to, each with a
+   **Copy project ID** button.
+2. Ask the user to paste the copied ID back
+3. Run `setup_project` with that ID — the config file will be written automatically
+4. All tools become available immediately
+
+The project ID is also visible in the web app URL (`/projects/<PROJECT_ID>`) if the
+connect page isn't reachable.
 
 ## Available tools
 
 ### diagnostics (always available)
 Health report — checks backend connectivity, auth validity, and whether this directory is linked to a project. Use this first when something isn't working.
+
+### reset_connection (always available)
+Drops the current backend session and reconnects — the fix for session/connection
+errors. With `unlink: true` it also deletes `.ai-project-manager.json`, so the
+directory can be linked to a different project. It never touches the API token or
+any server-side data.
 
 ### setup_project (unconfigured directories)
 Links this directory to a project in the web app. Requires the project UUID from the web app's URL.
@@ -47,7 +63,21 @@ Full kanban board management — boards, columns, tasks, and comments. Use the `
 ## Troubleshooting
 
 ### "API token rejected" or "401 Unauthorized"
-Your token may have expired or been revoked. Generate a new one in the web app and update it in Claude Code plugin settings.
+Run `diagnostics` and read the `token` and `token_owner` fields before advising anything:
+
+- `token.present: false` → the plugin's user config has no token. Run `/plugin`, set it, restart.
+- `token_owner.valid: false` → the backend doesn't recognise it. It was revoked, or only partly
+  pasted (check `token.looks_truncated`). Create a new one under Project → Settings → MCP.
+- `token_owner.projectId` different from the linked project → the token is for another project.
+  Either link that project, or create a token for this one. `diagnostics` states this in `problem`.
+
+**A changed token only takes effect after Claude Code restarts** — the token is passed to the MCP
+server as an environment variable at launch. If a fresh token still fails, check whether the server
+is even sending the new one: `read_log` shows the prefix of the token used on each connect attempt.
+
+### Tracing a failure
+`read_log` returns the plugin's log tail (path is in `diagnostics.log_file`) — every request,
+connect attempt, HTTP status and error body, with tokens redacted to their prefix.
 
 ### "Backend unreachable"
 Make sure your AI Project Manager backend is running at the configured API URL. Check the URL in plugin settings.
@@ -57,6 +87,15 @@ This directory hasn't been linked to a project yet. Use the `setup_project` tool
 
 ### Tools not showing up
 Run `diagnostics` to see the current state. If the config file exists but tools are missing, the project ID may be invalid.
+
+### "SSE rpc failed: HTTP 404" / "Session not found"
+The backend forgot the session — it keeps them in memory, so a backend restart or
+a redeploy invalidates them. The plugin reconnects and retries once automatically;
+if calls still fail, run `reset_connection`.
+
+### Wrong project linked
+Run `reset_connection` with `unlink: true`, then `setup_project` with the correct
+project ID.
 
 ## Config file format
 
