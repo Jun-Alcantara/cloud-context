@@ -21,6 +21,10 @@ This plugin connects Claude Code to the **AI Project Manager** web app, enabling
 When you first enable the plugin, the only thing you're asked for is:
 - **API Token** — Generate this in the web app: Project → Settings → MCP → Create Token
 
+Enter it through `/plugin` (select **AI Project Manager**), never by pasting it
+into a conversation — it's a credential. A token that ends up in chat should be
+revoked in the web app and replaced. Only the *project ID* is safe to paste.
+
 The plugin talks to `https://thedevelofurr.online` out of the box. Developers
 and self-hosters can point it elsewhere by launching Claude Code with
 `AIPM_API_URL=http://localhost:3001 claude`; `diagnostics` reports the URL in
@@ -61,6 +65,17 @@ Returns the project's name, description, and kanban board count.
 Full kanban board management — boards, columns, tasks, and comments. Use the `kanban` skill for detailed workflow guidance.
 
 ## Troubleshooting
+
+### None of the plugin's tools exist
+If `diagnostics` itself is unavailable, the MCP server isn't running — usually
+because no API token is configured, so there is nothing to diagnose *with*.
+Don't go spelunking through `installed_plugins.json`, the plugin cache, or
+`mcp-server.js` to reconstruct the state. Tell the user to create a token
+(Project → Settings → MCP → Create Token), enter it via `/plugin`, and restart
+Claude Code.
+
+`/plugin` requires an interactive terminal. In a non-interactive session the
+setup cannot be completed at all — say so instead of leaving the user waiting.
 
 ### "API token rejected" or "401 Unauthorized"
 Run `diagnostics` and read the `token` and `token_owner` fields before advising anything:

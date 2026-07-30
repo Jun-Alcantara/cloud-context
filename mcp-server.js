@@ -46,7 +46,7 @@ function redact(text) {
 
 function tokenSummary() {
   if (!API_TOKEN) {
-    return { present: false, reason: "API_TOKEN is empty — set it in /plugin config thedevelofurr" };
+    return { present: false, reason: "No API token is configured (API_TOKEN is empty) — set it via /plugin" };
   }
   if (API_TOKEN.includes("${")) {
     return {
@@ -395,7 +395,7 @@ async function handleMessage(msg) {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "ai-project-manager", version: "0.6.0" },
+          serverInfo: { name: "ai-project-manager", version: "0.7.0" },
           instructions:
             "This plugin connects to the AI Project Manager backend via MCP/SSE. " +
             "If no project is linked, use `setup_project` first. " +
@@ -504,11 +504,17 @@ async function handleMessage(msg) {
         const token = tokenSummary();
         const whoami = await fetchWhoami();
 
-        // The single most common setup failure: a valid token, wrong project.
-        const mismatch =
-          whoami.valid && config?.projectId && whoami.projectId !== config.projectId
-            ? `Token belongs to project "${whoami.projectName}" (${whoami.projectId}), but this directory is linked to ${config.projectId}. Link that project instead, or create a token for this one.`
-            : null;
+        // Name the one thing blocking setup, in the order the user hits them:
+        // no token at all, then a token that isn't for this project.
+        let problem = null;
+        if (!token.present) {
+          problem =
+            `${token.reason}. Create one in the web app (Project → Settings → MCP → Create Token), ` +
+            "then run /plugin, select AI Project Manager, and paste it there — not into the chat. " +
+            "Restart Claude Code afterwards.";
+        } else if (whoami.valid && config?.projectId && whoami.projectId !== config.projectId) {
+          problem = `Token belongs to project "${whoami.projectName}" (${whoami.projectId}), but this directory is linked to ${config.projectId}. Link that project instead, or create a token for this one.`;
+        }
         return {
           jsonrpc: "2.0",
           id,
@@ -517,7 +523,7 @@ async function handleMessage(msg) {
               {
                 type: "text",
                 text: JSON.stringify({
-                  plugin_version: "0.6.0",
+                  plugin_version: "0.7.0",
                   api_url: API_URL,
                   api_url_source: API_URL_SOURCE,
                   api_reachable: connectivity.reachable,
@@ -527,7 +533,7 @@ async function handleMessage(msg) {
                   log_file: LOG_FILE,
                   token,
                   token_owner: whoami,
-                  problem: mismatch,
+                  problem,
                   config_file: {
                     path: CONFIG_FILE,
                     exists: config !== null,

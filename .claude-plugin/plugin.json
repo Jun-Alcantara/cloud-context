@@ -1,15 +1,14 @@
 {
   "name": "thedevelofurr",
   "displayName": "AI Project Manager",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Connect Claude Code to AI Project Manager for task and context management across your projects.",
   "userConfig": {
     "api_token": {
       "type": "string",
       "title": "API Token",
-      "description": "Your API token from the AI Project Manager web app (Project → Settings → MCP → Create Token)",
-      "sensitive": true,
-      "required": true
+      "description": "Your API token from the AI Project Manager web app (Project → Settings → MCP → Create Token). Set this before running /thedevelofurr:setup.",
+      "sensitive": true
     }
   }
 }
