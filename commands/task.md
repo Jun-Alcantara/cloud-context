@@ -17,3 +17,10 @@ When invoked, do the following:
    - **Comment**: ask which task and the comment text, then run `kanban_manage` with `action: "create_comment"`.
 
 Always use the exact IDs returned by the API. Do not guess or fabricate IDs.
+
+Descriptions and comments render in a BlockNote rich-text editor, so write them
+as GitHub-Flavored Markdown: `##` sections, `- [ ]` checklists for acceptance
+criteria, tables for structured data, fenced code blocks with a language tag,
+and a blank line between blocks. Raw HTML and other unsupported syntax is
+flattened to plain text. The `kanban` skill has the full reference; a trivial
+task needs nothing more than a sentence or two.

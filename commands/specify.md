@@ -128,8 +128,12 @@ this** below.
 
 ## 3. Draft the ticket
 
-Write the description in GitHub-Flavored Markdown, with these `##` sections in
-this order:
+Write the description in GitHub-Flavored Markdown — it is parsed into a
+BlockNote rich-text editor, so stick to headings, emphasis, fenced code blocks
+with a language tag, bullet/numbered lists, `- [ ]` checklists, tables,
+blockquotes and dividers, with a blank line between blocks. Raw HTML and other
+unsupported syntax is flattened to plain text. Use these `##` sections in this
+order:
 
 - **## Overview** — one short paragraph: what this is and why it exists, in the
   context of this codebase.

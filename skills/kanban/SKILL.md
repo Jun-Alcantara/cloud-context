@@ -47,6 +47,39 @@ Use the `kanban_manage` MCP tool to manage kanban boards for the linked project 
 There is no separate action for reading or deleting comments — use `get_task`,
 which returns the task with all of its comments.
 
+## Writing descriptions and comments
+
+Task descriptions and comments are displayed in a **BlockNote** rich-text
+editor. Send them as GitHub-Flavored Markdown — BlockNote parses that markdown
+into blocks, so anything outside the supported syntax (raw HTML, footnotes,
+nested tables, LaTeX) is dropped or flattened into plain text.
+
+| Element      | Write it as                                        |
+| ------------ | -------------------------------------------------- |
+| Headings     | `# H1` … `###### H6` — prefer `##`/`###` in a body  |
+| Emphasis     | `**bold**`, `_italic_`, `~~strike~~`, `` `code` ``  |
+| Code block   | Fenced, with a language tag: ` ```typescript `      |
+| Bullet list  | `- item`                                            |
+| Numbered     | `1. item`                                           |
+| Checklist    | `- [ ] todo` / `- [x] done`                         |
+| Table        | `\| Col A \| Col B \|` with a `\|---\|---\|` separator |
+| Blockquote   | `> quoted text`                                     |
+| Link / image | `[label](url)` / `![alt](url)`                      |
+| Divider      | `---`                                               |
+
+Guidelines:
+
+- Give every non-trivial task a structured description: a short overview
+  paragraph, then `##` sections such as Overview, Acceptance Criteria, Notes.
+- Use checklists for acceptance criteria and action items — they stay checkable
+  in the editor.
+- Use tables for structured data (endpoints, config values, options) and fenced
+  code blocks with a language for snippets, commands, and terminal output.
+- Leave a blank line between blocks; the parser needs it to close a list or
+  paragraph.
+- For a short or trivial task a couple of plain sentences is fine — don't
+  over-format.
+
 ## Workflows
 
 ### Viewing all boards
@@ -71,7 +104,7 @@ Call `kanban_manage` with `action: "create_board"`, `name`, and optional `descri
 
 ### Creating a task
 
-Call `kanban_manage` with `action: "create_task"`, `boardId`, `columnId`, and `title`. The `description` is optional and supports GitHub-Flavored Markdown.
+Call `kanban_manage` with `action: "create_task"`, `boardId`, `columnId`, and `title`. The `description` is optional — see [Writing descriptions and comments](#writing-descriptions-and-comments) for the format.
 
 ### Moving a task
 
@@ -101,6 +134,7 @@ Include task IDs when referencing specific tasks for future operations.
 
 - Always run `diagnostics` first if the project link might not be set up
 - Board and column names are user-defined, don't assume naming conventions
-- Task descriptions and comments use GitHub-flavored Markdown
+- Task descriptions and comments render in a BlockNote editor — write them as
+  GitHub-Flavored Markdown, see [Writing descriptions and comments](#writing-descriptions-and-comments)
 - When creating a task at a specific position, examine the current board first to pick the right index
 - Deleting a board deletes all columns and tasks — warn the user before deleting
