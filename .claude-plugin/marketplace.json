@@ -1,0 +1,11 @@
+{
+  "name": "junalcantara",
+  "owner": { "name": "junalcantara" },
+  "plugins": [
+    {
+      "name": "thedevelofurr",
+      "source": "./",
+      "description": "Connect Claude Code to AI Project Manager for task and context management across your projects."
+    }
+  ]
+}

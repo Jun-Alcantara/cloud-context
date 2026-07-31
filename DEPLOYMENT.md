@@ -1,60 +1,61 @@
 # Deploying plugin updates
 
-## Current state
+## Where this lives
 
-The plugin is only distributed via a **local marketplace**: the repo root has
-`.claude-plugin/marketplace.json` (marketplace name `junalcantara`) pointing at
-`./ai-project-manager-plugin` (plugin name `thedevelofurr`, version tracked in
-`ai-project-manager-plugin/.claude-plugin/plugin.json`). This only works for
-installs where the user has this repo checked out locally at a known path —
-there is no public/hosted marketplace yet.
+This directory is both the **marketplace** and the **plugin**:
 
-**The backend URL is not user config.** As of 2026-07-30 (v0.6.0) the plugin
-ships pointing at `https://thedevelofurr.online`, hardcoded as
-`DEFAULT_API_URL` in `mcp-server.js`; installing asks only for an API token,
-the way any other app works. This replaced two earlier positions in quick
-succession: a `userConfig.api_url` defaulting to `http://localhost:3001`
-(sensible only while the plugin was installed from a local checkout), then the
-same field defaulting to production. Both asked users a question they have no
-way to answer.
+- `.claude-plugin/marketplace.json` — marketplace `junalcantara`, one plugin
+  entry `thedevelofurr` with `"source": "./"`.
+- `.claude-plugin/plugin.json` — the plugin manifest, including `version` and
+  the `userConfig` schema.
 
-Developers and self-hosters override it with the `AIPM_API_URL` env var in the
-environment that launches Claude Code:
-
-```
-AIPM_API_URL=http://localhost:3001 claude
-```
-
-`diagnostics` reports the URL in effect and its origin (`api_url` /
-`api_url_source`).
-
-## Updating an existing local install
-
-After editing anything under `ai-project-manager-plugin/` (commands, skills,
-`mcp-server.js`):
-
-1. Bump `"version"` in `ai-project-manager-plugin/.claude-plugin/plugin.json`.
-2. On any machine with the plugin installed: `/plugin marketplace update junalcantara`
-3. Restart Claude Code to pick up the new commands/skills/MCP server code.
-
-## Public distribution (since 2026-07-30)
-
-The plugin is published from the public repo
+It is developed inside the private `Jun-Alcantara/ai-project-manager` monorepo
+at `ai-project-manager-plugin/`, and published to the public repo
 [`Jun-Alcantara/cloud-context`](https://github.com/Jun-Alcantara/cloud-context),
-which holds a copy of this directory at its root plus its own
-`.claude-plugin/marketplace.json` (same marketplace name, `junalcantara`).
-End users install with:
+whose root is this directory. There is no second checkout and no copying: the
+two are the same files, connected by `git subtree`.
+
+The backend URL is **not** user config — as of v0.6.0 the plugin ships pointing
+at `https://thedevelofurr.online` (`DEFAULT_API_URL` in `mcp-server.js`), and
+installing asks only for an API token. Self-hosters and local development use
+the `AIPM_API_URL` env var; see
+[README.md](README.md#pointing-at-a-different-backend).
+
+## Shipping a change
+
+From the monorepo root:
+
+1. Make the change under `ai-project-manager-plugin/`.
+2. Bump `"version"` in `.claude-plugin/plugin.json`. `mcp-server.js` also
+   hard-codes the version in two places (`initialize` and `diagnostics`) — bump
+   those in the same commit.
+3. Commit to `main`.
+4. Publish:
+
+   ```
+   git subtree push --prefix=ai-project-manager-plugin cloud-context main
+   ```
+
+5. Users pick it up with `/plugin marketplace update junalcantara`, then a
+   Claude Code restart.
+
+Claude Code installs from `cloud-context`'s **default branch**, so nothing is
+live until step 4 lands on `main`.
+
+The `cloud-context` remote is per-clone; on a fresh checkout of the monorepo,
+add it once:
 
 ```
-/plugin marketplace add Jun-Alcantara/cloud-context
-/plugin install thedevelofurr@junalcantara
+git remote add cloud-context git@github.com:Jun-Alcantara/cloud-context.git
 ```
 
-This directory stays the source of truth. To ship a change: bump `version` in
-`.claude-plugin/plugin.json`, copy this directory's contents over the root of a
-`cloud-context` checkout (keeping that repo's `README.md`, `DEPLOYMENT.md`, and
-`.claude-plugin/marketplace.json`), commit, and push to `main` — Claude Code
-installs from the default branch only.
+If `subtree push` is rejected as non-fast-forward, someone committed directly to
+`cloud-context`. Pull that work back down rather than forcing over it:
 
-Note both marketplaces are named `junalcantara`, so a single machine should add
-either the local one or `cloud-context`, not both.
+```
+git subtree pull --prefix=ai-project-manager-plugin cloud-context main --squash
+```
+
+## Installing
+
+See [README.md](README.md).

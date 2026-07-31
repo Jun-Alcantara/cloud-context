@@ -579,7 +579,7 @@ async function handleMessage(msg) {
           // it, a session that starts with no token is stuck with the local
           // tools captured before connecting, and only a restart recovers.
           capabilities: { tools: { listChanged: true } },
-          serverInfo: { name: "ai-project-manager", version: "0.10.1" },
+          serverInfo: { name: "ai-project-manager", version: "0.12.1" },
           instructions:
             "This plugin connects to the AI Project Manager backend via MCP/SSE. " +
             "If no account is connected, call `connect_account` — it returns a URL the user " +
@@ -695,7 +695,7 @@ async function handleMessage(msg) {
               {
                 type: "text",
                 text: JSON.stringify({
-                  plugin_version: "0.10.1",
+                  plugin_version: "0.12.1",
                   api_url: API_URL,
                   api_url_source: API_URL_SOURCE,
                   api_reachable: connectivity.reachable,

@@ -6,7 +6,7 @@ disable-model-invocation: false
 
 # Kanban Board Management
 
-Use the `kanban` MCP tool to manage kanban boards for the linked project in AI Project Manager.
+Use the `kanban_manage` MCP tool to manage kanban boards for the linked project in AI Project Manager.
 
 ## Available actions
 
@@ -32,7 +32,7 @@ Use the `kanban` MCP tool to manage kanban boards for the linked project in AI P
 
 | Action        | Requires                                        | Description                         |
 | ------------- | ----------------------------------------------- | ----------------------------------- |
-| `create_task`   | `boardId`, `columnId`, `title`, optional `description` | Create task in a column           |
+| `create_task`   | `boardId`, `columnId`, `title`, optional `description`, `position`, `parentTaskId` | Create task in a column — pass `parentTaskId` to nest it as a subtask |
 | `update_task`   | `boardId`, `taskId`                                 | Update task title or description  |
 | `move_task`     | `boardId`, `taskId`, `columnId`, `position`           | Move task to different column     |
 | `delete_task`   | `boardId`, `taskId`                                 | Delete a task                     |
@@ -43,14 +43,15 @@ Use the `kanban` MCP tool to manage kanban boards for the linked project in AI P
 | Action           | Requires                                | Description          |
 | ---------------- | --------------------------------------- | -------------------- |
 | `create_comment`   | `boardId`, `taskId`, `content`              | Add comment to task  |
-| `list_comments`    | `boardId`, `taskId`                        | List task comments   |
-| `delete_comment`   | `boardId`, `taskId`, `commentId`            | Delete a comment     |
+
+There is no separate action for reading or deleting comments — use `get_task`,
+which returns the task with all of its comments.
 
 ## Workflows
 
 ### Viewing all boards
 
-Call `kanban` with `action: "list_boards"`. Example response:
+Call `kanban_manage` with `action: "list_boards"`. Example response:
 ```json
 {
   "boards": [
@@ -62,19 +63,19 @@ Call `kanban` with `action: "list_boards"`. Example response:
 
 ### Viewing a board
 
-Call `kanban` with `action: "get_board"` and the `boardId`. Returns the board with all columns and tasks.
+Call `kanban_manage` with `action: "get_board"` and the `boardId`. Returns the board with all columns and tasks.
 
 ### Creating a board
 
-Call `kanban` with `action: "create_board"`, `name`, and optional `description`. Three default columns (To Do, In Progress, Done) are created automatically.
+Call `kanban_manage` with `action: "create_board"`, `name`, and optional `description`. Three default columns (To Do, In Progress, Done) are created automatically.
 
 ### Creating a task
 
-Call `kanban` with `action: "create_task"`, `boardId`, `columnId`, and `title`. The `description` is optional and supports GitHub-Flavored Markdown.
+Call `kanban_manage` with `action: "create_task"`, `boardId`, `columnId`, and `title`. The `description` is optional and supports GitHub-Flavored Markdown.
 
 ### Moving a task
 
-Call `kanban` with `action: "move_task"`, `boardId`, `taskId`, `columnId`, and `position`. Use 0 for top position, or get the current board to find the next position.
+Call `kanban_manage` with `action: "move_task"`, `boardId`, `taskId`, `columnId`, and `position`. Use 0 for top position, or get the current board to find the next position.
 
 ### Presenting kanban to the user
 
