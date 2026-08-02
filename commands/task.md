@@ -13,7 +13,7 @@ When invoked, do the following:
 6. Based on their choice:
    - **Create**: ask for column, title, and optional description, then run `kanban_manage` with `action: "create_task"`.
    - **Move**: ask which task (by title or id), target column, and position, then run `kanban_manage` with `action: "move_task"`.
-   - **Update**: ask which task, then what to change (title/description), then run `kanban_manage` with `action: "update_task"`.
+   - **Update**: ask which task, then what to change (title, description, or technical notes), then run `kanban_manage` with `action: "update_task"`.
    - **Comment**: ask which task and the comment text, then run `kanban_manage` with `action: "create_comment"`.
 
 Always use the exact IDs returned by the API. Do not guess or fabricate IDs.
@@ -24,3 +24,8 @@ criteria, tables for structured data, fenced code blocks with a language tag,
 and a blank line between blocks. Raw HTML and other unsupported syntax is
 flattened to plain text. The `kanban` skill has the full reference; a trivial
 task needs nothing more than a sentence or two.
+
+A task also has a second body, `technicalNotes` — the implementer-facing half,
+shown as its own tab on the card. Files, existing pieces, constraints go there
+rather than in the description, and every path in it is relative to the project
+root, never absolute.

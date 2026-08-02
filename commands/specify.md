@@ -15,37 +15,51 @@ The job is three steps, in order: **research → draft → file**. Do not skip t
 research; a spec that could have been written without opening the repo is a
 failed spec.
 
+## A ticket has two halves
+
+The kanban card carries two separate documents, shown as tabs. Write both, and
+keep them apart:
+
+- **Description** — the requirements. Written for the person who decides
+  *whether* this gets built. This is the document the rest of this file is
+  about, and its rules are strict.
+- **Technical Notes** — what you found in the repo, written for whoever builds
+  it. The one place specifics belong. See **The technical notes** below.
+
+They are separate fields on the task, not two sections of one body. Nothing
+technical leaks upward into the description; nothing requirement-shaped gets
+restated downward in the notes.
+
 ## The one hard rule: specify only — no plan, no code
 
 This is the **first** of three separate stages: **specify → plan → implement**.
 This command owns the first one and stops there. It produces a requirements
-document: *what* is being built and *why*. **How** is the planning stage's job,
-and writing it is the implementation stage's. Collapsing them defeats the point
-of having them.
+document: *what* is being built and *why*, plus the research that grounds it.
+**How** is the planning stage's job, and writing it is the implementation
+stage's. Collapsing them defeats the point of having them.
 
 For the whole run you are **read-only on the repo**. Do not create, edit, or
 delete a single file. Do not run migrations, generators, installs, formatters,
 or tests. Do not start a branch, a commit, or a PR. The only thing this command
 writes anywhere is the kanban ticket.
 
-The ticket itself stays at the requirements level too — it describes *what must
-be true*, not *the code that makes it true*. There is **no code in the ticket at
-all**: no function bodies, no queries, no migrations, no diffs, not even a one-
-line signature. And no code-shaped names either — see **Who reads this** below,
-because the audience is the reason.
+Both halves of the ticket stay clear of code. **There is no code in the ticket
+at all**: no function bodies, no queries, no migrations, no diffs, not even a
+one-line signature. Naming a file the notes point at is grounding; pasting what
+is inside it is not.
 
 Finish by handing over the ticket. **Do not offer to plan or start building,
 and do not begin either if the user seems eager.** The next stage is a
 separate, explicit request. If they want it, they'll ask.
 
-## Who reads this: stakeholders, not developers
+## Who reads the description: stakeholders, not developers
 
 Write for the person who decides *whether* this gets built — a founder, a
 client, a product owner, a school administrator. Assume they have never opened
 the codebase and do not read code. If a sentence would make them stop and ask
 "what does that mean?", it has failed, no matter how precise it is.
 
-**Never put these in the ticket:**
+**Never put these in the description:**
 
 - Code of any kind — snippets, fenced blocks, function bodies, queries, diffs.
 - Class, method, or constant names: `RfidController::tap()`, `Role::SUPER_ADMIN`,
@@ -54,7 +68,7 @@ the codebase and do not read code. If a sentence would make them stop and ask
 - Query or ORM fragments: `->first()`, `whereUid(...)`, `SELECT`.
 - Framework vocabulary: controller, middleware, migration, endpoint, route,
   model, index, foreign key, nullable, JSON response.
-- File paths, in the body of the document.
+- File paths of any kind. They have a field of their own now.
 
 **Translate instead.** The research is what makes the requirement *correct*; the
 wording is what makes it *readable*. Say the same fact in the language of the
@@ -72,22 +86,42 @@ business:
 A latent bug found during research is still worth raising — describe its
 **consequence**, not its mechanism. "Two people at different campuses who happen
 to share a card number can already contaminate each other's attendance reports"
-tells a stakeholder everything they need; naming the query does not.
+tells a stakeholder everything they need; naming the query does not. The
+mechanism goes in the technical notes, where it is useful.
 
-## Paths and names
+## The technical notes
 
-If a path is genuinely unavoidable, it must be **repo-relative** —
-`app/Http/Controllers/RfidController.php`, never
-`/home/someone/projects/app/...`. Absolute paths leak your machine's layout and
-username, and they are wrong for every other developer who clones the repo
-somewhere else. The same goes for URLs to local dev servers and any personal
-directory name.
+Everything the description is forbidden to say, said once, properly. This is
+what stops the research from being thrown away — without it the planning stage
+reopens every file you already read.
 
-In practice the body of a stakeholder document needs no paths at all. If the
-research turned up specifics worth preserving for the planning stage, put them
-in a short **## Technical Notes** section at the very end, clearly marked as
-notes for the implementer rather than part of the requirements — and keep every
-path in it relative. Omit the section entirely when there is nothing to say.
+Write it for a developer who knows the language but has never seen this repo.
+Worth carrying forward:
+
+- **Where it lands** — the modules, files, and entities the change touches.
+- **What already exists** — half-built pieces, the feature to imitate, the
+  utility to reuse, the pattern this codebase follows for this kind of thing.
+- **Constraints and gotchas** — auth boundaries, third-party services in play,
+  data that must not move, the latent bug you found and how it actually works.
+
+Keep it to what the research turned up. Do **not** write a build order, a
+schema, an API design, or a file-by-file task list — that is the planning
+stage, and it is not yours. Notes say *here is what is there*; a plan says
+*here is what to do about it*. Leave the field empty if the research genuinely
+turned up nothing worth carrying — that is rare, and it usually means the
+research was thin.
+
+### Every path is relative to the project root
+
+`app/Http/Controllers/RfidController.php` — never
+`/home/someone/projects/app/Http/Controllers/RfidController.php`, never
+`C:\Users\...`, never `~/projects/...`.
+
+Whoever reads this ticket has the repo checked out somewhere else entirely. An
+absolute path is wrong for all of them, and it leaks the machine and username of
+whoever ran this command. The same rule covers localhost dev-server URLs and any
+personal directory name: if it only makes sense on one machine, it does not
+belong in the ticket.
 
 ---
 
@@ -123,12 +157,17 @@ Aim to answer, for this request specifically:
 Be concrete about *behaviour*, never vague ("it should handle errors well").
 But describe that behaviour in business language — what a person experiences,
 what the system currently does to them, what must change. The file you found it
-in is how you know it's true; it is not what you write down. See **Who reads
-this** below.
+in is how you know it's true; it is not what you write in the description — it
+goes in the technical notes instead, where a path is exactly what is wanted.
+
+Keep the paths as you find them: **relative to the project root**. Your tools
+will hand you absolute paths; strip the prefix before writing anything down.
 
 ## 3. Draft the ticket
 
-Write the description in GitHub-Flavored Markdown — it is parsed into a
+### The description
+
+Write it in GitHub-Flavored Markdown — it is parsed into a
 BlockNote rich-text editor, so stick to headings, emphasis, fenced code blocks
 with a language tag, bullet/numbered lists, `- [ ]` checklists, tables,
 blockquotes and dividers, with a blank line between blocks. Raw HTML and other
@@ -169,24 +208,27 @@ order:
   not questions that are really technical design decisions. If nothing is
   undecided, leave the section out entirely; an empty "Open Questions: none" is
   noise.
-- **## Technical Notes** — *only if the research turned up something the
-  planning stage would otherwise have to rediscover.* The one place where
-  specifics are allowed: relative paths, and the names of things that already
-  exist. Keep it to a few bullets, mark it plainly as notes for the implementer
-  and not part of the requirements, and still write no code. Omit it entirely
-  when there's nothing worth carrying forward.
 
-Every section above it is written for the stakeholder. This last one is the
-exception, and it earns that by being clearly fenced off — not by letting
-technical language drift back up into the rest of the document.
+That is the whole description — every section of it written for the
+stakeholder, and no **## Technical Notes** section at the end. Technical notes
+are their own field now, not the last heading of this one.
 
-That's the whole document. **There is no implementation plan and no technical
-design here** — no sequencing, no file-by-file steps, no schema or API design.
-Those belong to a separate planning step that comes after this one, and they
-can't be decided well until the requirements are agreed. A spec that quietly
-smuggles in a build order has skipped that conversation.
+**There is no implementation plan and no technical design here** — no
+sequencing, no file-by-file steps, no schema or API design. Those belong to a
+separate planning step that comes after this one, and they can't be decided
+well until the requirements are agreed. A spec that quietly smuggles in a build
+order has skipped that conversation.
 
-The title should read like a ticket: short, imperative, specific
+### The technical notes
+
+The second field, written to the rules in **The technical notes** above: what
+the research found, for the developer who builds this. Same markdown support.
+Short `##` sections or plain bullets — whatever suits what you found. Every
+path relative to the project root.
+
+### The title
+
+It should read like a ticket: short, imperative, specific
 ("Add forgot-password flow with emailed reset tokens").
 
 ## 4. File it immediately
@@ -202,9 +244,15 @@ terminal and say "yes".
 4. Pick the intake column — the leftmost / backlog-style column (often "To Do").
    If the naming is ambiguous, ask.
 5. `kanban_manage` with `action: "create_task"`, passing `boardId`, `columnId`,
-   `title`, and the full `description`.
+   `title`, the full `description`, and the `technicalNotes`. Both bodies go in
+   the one call — filing the ticket and then patching the notes on is two round
+   trips and leaves the card half-written in between.
 
 Use the exact IDs the API returned. Never invent an ID, a board, or a column.
+
+Before sending, reread `technicalNotes` for absolute paths and rewrite any you
+find as relative to the project root. This is the one thing easiest to get
+wrong, because your tools report paths the other way.
 
 Those two questions in steps 2 and 4 are the only ones allowed here, and only
 when the board or column genuinely can't be resolved on its own. Everything
@@ -222,12 +270,14 @@ Created **Add forgot-password flow with emailed reset tokens** in To Do.
 
 https://thedevelofurr.online/projects/.../tasks/...
 
-4 user stories, 11 requirements, 9 acceptance criteria. 3 open questions at the
-bottom — worth settling before planning.
+4 user stories, 11 requirements, 9 acceptance criteria, plus technical notes on
+the Technical tab. 3 open questions at the bottom — worth settling before
+planning.
 ```
 
 Then add a one-line summary: how many user stories, requirements, and
-acceptance criteria, plus the number of open questions if there are any.
+acceptance criteria, that the research is on the Technical tab, and the number
+of open questions if there are any.
 
 Planning is the next step, not this one. You may say the spec is ready to plan
 against; do not start planning it, and do not attach a plan to the report.
