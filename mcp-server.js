@@ -77,6 +77,40 @@ function resolveToken() {
 // downstream should start using it without a restart.
 let TOKEN_RESOLUTION = resolveToken();
 let API_TOKEN = TOKEN_RESOLUTION.token;
+
+/**
+ * A token given through plugin config or the environment is the user's explicit
+ * choice and outranks the file, so there is nothing on disk worth re-reading.
+ * Decided once, at startup, because approving in the browser rewrites
+ * TOKEN_RESOLUTION and must not quietly promote this process to unpinned.
+ */
+const TOKEN_IS_PINNED =
+  TOKEN_RESOLUTION.source === "plugin user config" ||
+  TOKEN_RESOLUTION.source === "AIPM_API_TOKEN env var";
+
+/**
+ * Adopt a newer token from the token file, if one has appeared.
+ *
+ * This process outlives the approval that gave it a token. Another window, or
+ * the same machine after a plugin update, can re-approve and mint a fresh
+ * credential — at which point the one held here is often revoked, and every
+ * request fails with "this token was revoked". Nothing recovered from that
+ * before: the stale value lives in memory, so reconnecting reached for the same
+ * dead token, and only restarting the host cleared it.
+ *
+ * Returns whether the token changed, so a caller can decide to retry.
+ */
+function refreshTokenFromFile() {
+  if (TOKEN_IS_PINNED) return false;
+  const next = resolveToken();
+  if (!next.token || next.token === API_TOKEN) return false;
+  API_TOKEN = next.token;
+  TOKEN_RESOLUTION = next;
+  logStderr(
+    "Adopted a newer token from the token file — this machine was re-approved elsewhere.",
+  );
+  return true;
+}
 const PROJECT_DIR = process.env.PROJECT_DIR || process.cwd();
 const CONFIG_FILE = path.join(PROJECT_DIR, ".ai-project-manager.json");
 const LOG_FILE =
@@ -197,6 +231,9 @@ function resetSession(reason) {
 async function ensureSession() {
   if (sseSessionUrl) return;
   if (!sseConnecting) {
+    // Every reconnect is a chance to notice that the credential moved on. One
+    // small file read per connection, not per request.
+    refreshTokenFromFile();
     sseConnecting = connectSSE().finally(() => { sseConnecting = null; });
   }
   await sseConnecting;
@@ -392,7 +429,16 @@ async function sseRpc(method, params) {
  * restart — and it's recoverable without the user restarting Claude Code.
  */
 async function sseRpcWithRetry(method, params) {
-  await ensureSession();
+  try {
+    await ensureSession();
+  } catch (err) {
+    // A 401 here is usually a token this process has outlived rather than one
+    // the user has to replace: the connect above already re-read the file, so
+    // only a token that landed since is worth another attempt.
+    if (err.statusCode !== 401 || !refreshTokenFromFile()) throw err;
+    resetSession("retrying with the token that replaced the rejected one");
+    await ensureSession();
+  }
   try {
     return await sseRpc(method, params);
   } catch (err) {
@@ -579,7 +625,7 @@ async function handleMessage(msg) {
           // it, a session that starts with no token is stuck with the local
           // tools captured before connecting, and only a restart recovers.
           capabilities: { tools: { listChanged: true } },
-          serverInfo: { name: "ai-project-manager", version: "0.13.0" },
+          serverInfo: { name: "ai-project-manager", version: "0.13.1" },
           instructions:
             "This plugin connects to the AI Project Manager backend via MCP/SSE. " +
             "If no account is connected, call `connect_account` — it returns a URL the user " +
@@ -666,6 +712,9 @@ async function handleMessage(msg) {
       }
 
       if (toolName === "diagnostics") {
+        // Report on the token this process would actually send next, not the
+        // one it happened to start with.
+        refreshTokenFromFile();
         const connectivity = await checkApiConnectivity();
         const token = tokenSummary();
         const whoami = await fetchWhoami();
@@ -695,7 +744,7 @@ async function handleMessage(msg) {
               {
                 type: "text",
                 text: JSON.stringify({
-                  plugin_version: "0.13.0",
+                  plugin_version: "0.13.1",
                   api_url: API_URL,
                   api_url_source: API_URL_SOURCE,
                   api_reachable: connectivity.reachable,
@@ -723,6 +772,31 @@ async function handleMessage(msg) {
       }
 
       if (toolName === "connect_account") {
+        // Someone may have approved this machine already — in another window,
+        // or before a plugin update — in which case the credential is sitting
+        // on disk and sending the user to the browser again achieves nothing.
+        if (!pendingDeviceAuth && refreshTokenFromFile()) {
+          resetSession("adopted the token another session approved");
+          const check = await fetchWhoami();
+          if (check.valid) {
+            const linked = await fetchCurrentProject().catch(() => null);
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: JSON.stringify({
+                  connected: true,
+                  status: "already_approved",
+                  detail:
+                    "This machine was already approved — the newer token was picked up from " +
+                    `${TOKEN_FILE}. No browser approval needed.`,
+                  project: linked?.linked ? linked.project : null,
+                }, null, 2) }],
+              },
+            };
+          }
+        }
+
         // Returns after a bounded wait rather than blocking for the full ten
         // minutes: the model gets a URL to show immediately, and calling again
         // resumes the same request instead of invalidating it.
