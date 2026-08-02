@@ -9,6 +9,24 @@ const https = require("https");
 const DEFAULT_API_URL = "https://thedevelofurr.online";
 
 /**
+ * Read the version off the manifest rather than repeating it here. Two
+ * hardcoded copies had already drifted a release behind, which made
+ * `diagnostics` report a version the user was not running.
+ */
+function resolvePluginVersion() {
+  try {
+    const manifest = path.join(__dirname, ".claude-plugin", "plugin.json");
+    const version = JSON.parse(fs.readFileSync(manifest, "utf8")).version;
+    if (typeof version === "string" && version.trim()) return version.trim();
+  } catch {
+    // fall through — a missing or malformed manifest must not stop the server
+  }
+  return "unknown";
+}
+
+const PLUGIN_VERSION = resolvePluginVersion();
+
+/**
  * The backend URL is not something we ask users for — the plugin ships knowing
  * where its own service lives. `AIPM_API_URL` exists only for developing
  * against a local backend and for self-hosters; set it in the environment that
@@ -625,7 +643,7 @@ async function handleMessage(msg) {
           // it, a session that starts with no token is stuck with the local
           // tools captured before connecting, and only a restart recovers.
           capabilities: { tools: { listChanged: true } },
-          serverInfo: { name: "ai-project-manager", version: "0.13.1" },
+          serverInfo: { name: "ai-project-manager", version: PLUGIN_VERSION },
           instructions:
             "This plugin connects to the AI Project Manager backend via MCP/SSE. " +
             "If no account is connected, call `connect_account` — it returns a URL the user " +
@@ -744,7 +762,7 @@ async function handleMessage(msg) {
               {
                 type: "text",
                 text: JSON.stringify({
-                  plugin_version: "0.13.1",
+                  plugin_version: PLUGIN_VERSION,
                   api_url: API_URL,
                   api_url_source: API_URL_SOURCE,
                   api_reachable: connectivity.reachable,
