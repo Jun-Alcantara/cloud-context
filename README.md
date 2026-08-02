@@ -70,7 +70,14 @@ Finally, link the current directory to a project:
 | `/thedevelofurr:setup` | Link this directory to a project, picked by name |
 | `/thedevelofurr:board` | View or manage kanban boards |
 | `/thedevelofurr:task` | Create, update, or move a task |
+| `/thedevelofurr:specify` | Turn a feature request into a researched spec ticket |
+| `/thedevelofurr:implement` | Pick up a ticket by reference, branch, build, push, report back |
+| `/thedevelofurr:update` | Update the plugin to the latest version |
 | `/thedevelofurr:reset` | Reset the connection, or unlink the directory |
+
+`specify` and `implement` are two ends of the same run: `/thedevelofurr:specify`
+files a ticket with an id like `APRAS-004`, and `/thedevelofurr:implement
+APRAS-004` cuts a branch for it, builds it, pushes it, and comments on the card.
 
 **Skills** — `guide` (task and context management) and `kanban` (board usage)
 load automatically when you ask Claude about project tasks or boards.

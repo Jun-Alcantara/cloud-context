@@ -32,20 +32,42 @@ Use the `kanban_manage` MCP tool to manage kanban boards for the linked project 
 
 | Action        | Requires                                        | Description                         |
 | ------------- | ----------------------------------------------- | ----------------------------------- |
-| `create_task`   | `boardId`, `columnId`, `title`, optional `description`, `technicalNotes`, `position`, `parentTaskId` | Create task in a column — pass `parentTaskId` to nest it as a subtask |
-| `update_task`   | `boardId`, `taskId`                                 | Update task title, description, or technical notes |
-| `move_task`     | `boardId`, `taskId`, `columnId`, `position`           | Move task to different column     |
+| `create_task`   | `boardId`, `columnId`, `title`, optional `description`, `technicalNotes`, `branch`, `position`, `parentTaskId` | Create task in a column — pass `parentTaskId` to nest it as a subtask |
+| `update_task`   | task identity                                     | Update task title, description, technical notes, or branch |
+| `move_task`     | task identity, `columnId`, optional `position`      | Move task to different column — bottom of it if `position` is omitted |
 | `delete_task`   | `boardId`, `taskId`                                 | Delete a task                     |
-| `get_task`      | `boardId`, `taskId`                                 | Get task with its comments        |
+| `get_task`      | task identity                                     | Get task with its comments, subtasks, and the board and columns it lives on |
 
 ### Comments
 
 | Action           | Requires                                | Description          |
 | ---------------- | --------------------------------------- | -------------------- |
-| `create_comment`   | `boardId`, `taskId`, `content`              | Add comment to task  |
+| `create_comment`   | task identity, `content`                  | Add comment to task  |
 
 There is no separate action for reading or deleting comments — use `get_task`,
 which returns the task with all of its comments.
+
+## Identifying a task
+
+Where the table above says *task identity*, the task can be named either way:
+
+| Pass                  | When                                                        |
+| --------------------- | ----------------------------------------------------------- |
+| `reference`           | The user quoted an id like `APRAS-001`. Resolved across every board in the project, so no `boardId` is needed. |
+| `taskId` + `boardId`  | You are working from uuids returned by `get_board`.          |
+
+Every task has a `reference`, assigned at creation from the project's initials
+and a running number — "Academe Portal - RFID Attendance System" gives
+`APRAS-001`, `APRAS-002`, and so on. It never changes and is never reused, so
+it is safe to put in a branch name or a commit message. Show it whenever you
+list tasks for a human; they cannot quote a uuid back at you.
+
+## The branch field
+
+`branch` holds the git branch the work for a task lives on — a plain branch
+name like `feature/apras-001-rfid-tap`, not a URL and not a remote. Set it when
+the branch is cut, and pass an empty string to clear it. The
+`/thedevelofurr:implement` command writes it automatically.
 
 ## The two halves of a task
 
@@ -133,21 +155,25 @@ When showing a board, format it as a structured table:
 # Board: Sprint 1
 
 ## To Do
-- [ ] Task title 1
-- [ ] Task title 2
+- [ ] APRAS-001  Task title 1
+- [ ] APRAS-004  Task title 2
 
 ## In Progress
-- [ ] Task title 3
+- [ ] APRAS-002  Task title 3
 
 ## Done
-- [x] Task title 4
+- [x] APRAS-003  Task title 4
 ```
 
-Include task IDs when referencing specific tasks for future operations.
+Lead with the reference — it is the id a person can quote back at you, and the
+one that ends up in branch names and commit messages.
 
 ## Tips
 
 - Always run `diagnostics` first if the project link might not be set up
+- Show the `reference` whenever you list tasks, and accept one wherever the user
+  gives you one — `get_task`, `update_task`, `move_task` and `create_comment`
+  all take it in place of `taskId`
 - Board and column names are user-defined, don't assume naming conventions
 - Task bodies and comments render in a BlockNote editor — write them as
   GitHub-Flavored Markdown, see [Writing descriptions and comments](#writing-descriptions-and-comments)

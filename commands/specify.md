@@ -263,10 +263,12 @@ else proceeds without checking in.
 Keep it short. The ticket is on the board — the user will read it there, so
 don't reproduce the description in the terminal.
 
-`create_task` returns a `_link`. Give it as a clickable URL on its own line:
+`create_task` returns the created task, including its `reference` — the id the
+board shows and the one `/thedevelofurr:implement` takes — and a `_link`. Lead
+with the reference and give the link as a clickable URL on its own line:
 
 ```
-Created **Add forgot-password flow with emailed reset tokens** in To Do.
+Created **APRAS-004 — Add forgot-password flow with emailed reset tokens** in To Do.
 
 https://thedevelofurr.online/projects/.../tasks/...
 
