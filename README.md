@@ -72,12 +72,27 @@ Finally, link the current directory to a project:
 | `/thedevelofurr:task` | Create, update, or move a task |
 | `/thedevelofurr:specify` | Turn a feature request into a researched spec ticket |
 | `/thedevelofurr:implement` | Pick up a ticket by reference, branch, build, push, report back |
+| `/thedevelofurr:ship` | Both of the above in one run — spec it, settle the questions, build it |
+| `/thedevelofurr:document` | The reverse — write changes you already made up onto the board |
 | `/thedevelofurr:update` | Update the plugin to the latest version |
 | `/thedevelofurr:reset` | Reset the connection, or unlink the directory |
 
 `specify` and `implement` are two ends of the same run: `/thedevelofurr:specify`
 files a ticket with an id like `APRAS-004`, and `/thedevelofurr:implement
 APRAS-004` cuts a branch for it, builds it, pushes it, and comments on the card.
+
+`/thedevelofurr:ship` runs both without stopping in between. It still files the
+ticket first, so the work is recorded before any code exists; if the spec turns
+up open questions it asks them in the chat, writes the answers back to the card,
+and then builds. It composes the other two commands rather than copying them, so
+changes to `specify` or `implement` apply to it automatically.
+
+`/thedevelofurr:document` runs the same pipeline backwards, for the times you
+didn't start at the board: you fixed something, cut a branch, maybe pushed it,
+and no ticket exists. It reads the branch, asks what the change was *for* —
+the one thing the diff can't tell it — files the ticket straight into Done,
+records the branch on the card, and closes it out with the same comment
+`implement` writes. It refuses to run on a branch that's already merged.
 
 **Skills** — `guide` (task and context management) and `kanban` (board usage)
 load automatically when you ask Claude about project tasks or boards.
