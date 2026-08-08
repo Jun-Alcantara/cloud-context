@@ -6,11 +6,15 @@ description: Create, update, or move a kanban task.
 When invoked, do the following:
 
 1. Run `diagnostics` to confirm the project is linked.
-2. Run `kanban_manage` with `action: "list_boards"` to get available boards.
-3. Ask the user which board the task belongs to.
-4. Run `kanban_manage` with `action: "get_board"` for the chosen board to show columns and existing tasks.
-5. Ask what they want to do: create a new task, move an existing task, update a task, or add a comment.
-6. Based on their choice:
+2. If the user described an existing task rather than naming it, run
+   `search_tasks` with what they said and offer the matches — that resolves it
+   in one call. Fall back to steps 3–4 only when the search comes back empty or
+   the project has nothing indexed (`indexedTaskCount: 0`).
+3. Run `kanban_manage` with `action: "list_boards"` to get available boards.
+4. Ask the user which board the task belongs to.
+5. Run `kanban_manage` with `action: "get_board"` for the chosen board to show columns and existing tasks.
+6. Ask what they want to do: create a new task, move an existing task, update a task, or add a comment.
+7. Based on their choice:
    - **Create**: ask for column, title, and optional description, then run `kanban_manage` with `action: "create_task"`.
    - **Move**: ask which task (by title or reference), target column, and position, then run `kanban_manage` with `action: "move_task"`.
    - **Update**: ask which task, then what to change (title, description, technical notes, or branch), then run `kanban_manage` with `action: "update_task"`.

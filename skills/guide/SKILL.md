@@ -96,6 +96,13 @@ errors. It does **not** change the link; use `unlink_project` for that.
 Project details and full kanban management — boards, columns, tasks, comments.
 Use the `kanban` skill for workflow guidance.
 
+### search_tasks (linked directories)
+Semantic search over the project's tasks. Returns the passages that match, not
+whole cards, so use it to locate a task instead of pulling every board with
+`kanban_manage get_board`. Only tasks someone has indexed from the web UI
+(the **Embed** button on a card) are searchable — when `indexedTaskCount` is 0,
+nothing has been indexed yet, which is not the same as the task not existing.
+
 ## Troubleshooting
 
 ### None of the plugin's tools exist

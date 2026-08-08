@@ -8,6 +8,36 @@ disable-model-invocation: false
 
 Use the `kanban_manage` MCP tool to manage kanban boards for the linked project in AI Project Manager.
 
+## Finding a task: search before you enumerate
+
+When you need to *find* something rather than act on a task you already have,
+reach for `search_tasks` first. `get_board` returns every task on a board in
+full, so using it to hunt for a topic burns context on cards you will not read.
+
+`search_tasks` matches on meaning, not keywords, and hands back the specific
+passage that matched:
+
+| Argument          | Default | Notes                                                        |
+| ----------------- | ------- | ------------------------------------------------------------ |
+| `query`           | —       | Required. Describe the concept in natural language.           |
+| `limit`           | 8       | Max 25.                                                       |
+| `boardId`         | —       | Omit to search every board in the project.                    |
+| `includeComments` | true    | Set false to search only the ticket bodies.                   |
+| `minScore`        | 0.3     | Raise if results are loose, lower if an expected match misses. |
+
+Each result carries a `reference`, so the follow-up is `kanban_manage` with
+`get_task` for the ones worth reading in full.
+
+Two fields in the response change what you should say:
+
+- **`indexedTaskCount: 0`** — the project has nothing indexed, which is *not*
+  the same as "no such task". Indexing is manual: a person clicks **Embed** on
+  a card in the web UI. Tell the user that rather than reporting the task
+  missing.
+- **`stale: true`** on a result — that ticket was edited after it was indexed,
+  so the passage may be out of date. Pull the current version with `get_task`
+  before relying on it.
+
 ## Available actions
 
 ### Boards
