@@ -40,7 +40,7 @@ Tokens can still be supplied directly where a browser isn't available:
 Precedence is plugin config → env var → token file. `diagnostics` reports which
 one supplied the token as `token.source`, and never echoes the value.
 
-The plugin talks to `https://thedevelofurr.online` out of the box. Developers
+The plugin talks to `https://aijoe-api.onrender.com` out of the box. Developers
 and self-hosters can point it elsewhere by launching Claude Code with
 `AIPM_API_URL=http://localhost:3001 claude`; `diagnostics` reports the URL in
 effect and its origin (`api_url` / `api_url_source`).

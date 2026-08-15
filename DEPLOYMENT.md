@@ -16,7 +16,7 @@ whose root is this directory. There is no second checkout and no copying: the
 two are the same files, connected by `git subtree`.
 
 The backend URL is **not** user config — as of v0.6.0 the plugin ships pointing
-at `https://thedevelofurr.online` (`DEFAULT_API_URL` in `mcp-server.js`), and
+at `https://aijoe-api.onrender.com` (`DEFAULT_API_URL` in `mcp-server.js`), and
 installing asks only for an API token. Self-hosters and local development use
 the `AIPM_API_URL` env var; see
 [README.md](README.md#pointing-at-a-different-backend).

@@ -37,7 +37,7 @@ Example of step 2:
 ```
 Approve this machine to connect:
 
-**https://thedevelofurr.online/connect/cli?code=6B7C-3RHZ**
+**https://aijoe.onrender.com/connect/cli?code=6B7C-3RHZ**
 
 You're already signed in, so it's one click. Tell me when you've approved it
 (code 6B7C-3RHZ).

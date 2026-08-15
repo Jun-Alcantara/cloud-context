@@ -78,7 +78,7 @@ APRAS-004 has 2 unanswered questions:
 Answer them here and I will record them on the card and start, or answer them
 in the comments on the card and re-run this command.
 
-https://thedevelofurr.online/projects/.../kanban/...
+https://aijoe.onrender.com/projects/.../kanban/...
 ```
 
 If they answer in this session, **post their answers as a comment first**

@@ -1,6 +1,6 @@
 # AI Project Manager — Claude Code plugin
 
-Connect Claude Code to [AI Project Manager](https://thedevelofurr.online) so
+Connect Claude Code to [AI Project Manager](https://aijoe.onrender.com) so
 Claude can read and manage your kanban boards, tasks, and project context
 directly from the terminal.
 
@@ -22,7 +22,7 @@ in), and it picks up from there. **No token to copy, no project ID to paste.**
 
 ```
 Approve this machine to connect:
-  https://thedevelofurr.online/connect/cli?code=6B7C-3RHZ
+  https://aijoe.onrender.com/connect/cli?code=6B7C-3RHZ
 > approved
 Connected as you@example.com. This directory is ~/parlon/api.
 Link it to Parlon API (3 boards)?
@@ -45,7 +45,7 @@ pass it as `AIPM_API_TOKEN`.
 
 ### Pointing at a different backend
 
-The plugin talks to `https://thedevelofurr.online`. If you self-host, or you're
+The plugin talks to `https://aijoe-api.onrender.com`. If you self-host, or you're
 developing against a local backend, launch Claude Code with:
 
 ```

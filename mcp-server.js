@@ -6,7 +6,7 @@ const http = require("http");
 const https = require("https");
 
 // ── Config ────────────────────────────────────────────────────────────────
-const DEFAULT_API_URL = "https://thedevelofurr.online";
+const DEFAULT_API_URL = "https://aijoe-api.onrender.com";
 
 /**
  * Read the version off the manifest rather than repeating it here. Two

@@ -119,7 +119,7 @@ very end, and keep it short — the detail is on the card:
 Specced, then built on `feature/apras-004-forgot-password-flow` — 4 commits, pushed.
 2 open questions answered above are recorded on the card.
 
-https://thedevelofurr.online/projects/.../tasks/...
+https://aijoe.onrender.com/projects/.../tasks/...
 ```
 
 If the run stops early — unanswered questions, a dirty worktree, a ticket that
