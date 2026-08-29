@@ -135,6 +135,11 @@ const LOG_FILE =
   process.env.AIPM_LOG_FILE || path.join(os.tmpdir(), "ai-project-manager-plugin.log");
 const LOG_MAX_BYTES = 2 * 1024 * 1024;
 
+/** Mirrors the backend's own cap (mcp.service.ts) — a fast local rejection
+ * before spending time reading and base64-encoding a file that would only
+ * be rejected after the round trip anyway. */
+const MAX_ATTACH_IMAGE_BYTES = 5 * 1024 * 1024;
+
 /**
  * How long `connect_account` waits before answering. Short enough to stay well
  * inside the host's tool timeout, long enough that a user who clicks straight
@@ -255,6 +260,34 @@ async function ensureSession() {
     sseConnecting = connectSSE().finally(() => { sseConnecting = null; });
   }
   await sseConnecting;
+}
+
+/**
+ * `attach_task_image`'s filePath reads whatever local file the caller names
+ * — including, in principle, a path an agent picked up from task or comment
+ * content it does not fully control. Restricting it to the project directory
+ * and the OS temp directory (where Playwright screenshots and other scratch
+ * files land) covers both real use cases — a repo file, a fresh screenshot —
+ * while keeping this from ever becoming a way to read credentials or other
+ * files elsewhere on the machine and have them uploaded to a public url.
+ */
+function resolveAttachImagePath(filePath) {
+  const resolved = path.resolve(filePath);
+  const allowedRoots = [PROJECT_DIR, os.tmpdir()].map((p) => path.resolve(p));
+  const allowed = allowedRoots.some(
+    (root) => resolved === root || resolved.startsWith(root + path.sep),
+  );
+  if (!allowed) {
+    throw new Error(
+      `${resolved} is outside the allowed locations for attach_task_image ` +
+        `(${allowedRoots.join(", ")}) — move the file into the project ` +
+        "directory or a temp directory first",
+    );
+  }
+  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+    throw new Error(`${resolved} does not exist or is not a file`);
+  }
+  return resolved;
 }
 
 /**
@@ -936,6 +969,54 @@ async function handleMessage(msg) {
             ],
           },
         };
+      }
+
+      // attach_task_image's filePath is resolved right here, not by the
+      // backend: the backend has no access to this machine's filesystem, and
+      // is not meant to — only this local process is. Reading the file and
+      // base64-encoding it in JS is exact every time, unlike asking a model
+      // to reproduce a base64 blob as output tokens, which is what filePath
+      // exists to avoid.
+      if (toolName === "attach_task_image" && toolArgs.filePath) {
+        try {
+          const resolved = resolveAttachImagePath(toolArgs.filePath);
+          const stat = fs.statSync(resolved);
+          if (stat.size > MAX_ATTACH_IMAGE_BYTES) {
+            return {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: JSON.stringify({
+                  error: `${resolved} is ${(stat.size / 1024 / 1024).toFixed(1)}MB, over the ${MAX_ATTACH_IMAGE_BYTES / 1024 / 1024}MB limit — resize it first`,
+                }) }],
+                isError: true,
+              },
+            };
+          }
+          const data = fs.readFileSync(resolved).toString("base64");
+          // Always the real basename, never the caller's filename — otherwise
+          // a call could point filePath at a non-image file while claiming a
+          // filename like "photo.png" to slip past the backend's
+          // extension-based type check.
+          const filename = path.basename(resolved);
+          const result = await sseRpcWithRetry("tools/call", {
+            name: "attach_task_image",
+            arguments: { data, filename },
+          });
+          if (result.error) return { jsonrpc: "2.0", id, error: result.error };
+          return { jsonrpc: "2.0", id, result: result.result };
+        } catch (err) {
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [{ type: "text", text: JSON.stringify({
+                error: `Could not read ${toolArgs.filePath}: ${err.message}`,
+              }) }],
+              isError: true,
+            },
+          };
+        }
       }
 
       // Everything else — including list_projects / link_project — is the

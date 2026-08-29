@@ -112,6 +112,44 @@ A body you did not just write belongs to whoever wrote it — patch it with
   retry. Never fall back to `update_task`; that overwrites everything anyone
   else has changed since.
 
+## Viewing an image in a body
+
+A `description`, `technicalNotes`, or comment can contain an image as
+`![alt](url)` or as an image block. `get_task` and `get_board` hand that url
+back as plain text — a reference, not something you can look at. Call the
+`get_task_image` tool (a separate top-level tool, not a `kanban_manage`
+action) with that exact `url` to get the image itself back as visible
+content.
+
+Only jpeg, png, gif, and webp are viewable this way. Other attachment types —
+pdf, video, audio, zip, or an image format outside that list — cannot be
+viewed through this tool; there is currently no way to see or read those,
+only to know from the url that they exist.
+
+## Attaching an image to a body
+
+To put a new image into a body — a screenshot, a diagram, a file from the
+repo — call `attach_task_image`; it returns a `url`. Insert that url into the
+body yourself as `![alt](url)`, the same as any other image, with
+`update_task`, `patch_task_body`, or `create_comment`. `attach_task_image`
+only stores the image — it does not touch any task itself.
+
+**Always pass `filePath` (an absolute path) when the image already exists on
+disk** — a Playwright screenshot, a file from the repo. The plugin reads and
+base64-encodes it locally; nothing about the bytes passes through you. Only
+fall back to `data` + `filename` (base64 you already have in hand) when there
+is no file to point at. Reproducing a long base64 string yourself is exactly
+the failure mode `filePath` exists to avoid — it is easy to silently drop or
+alter a character over a few thousand characters, and nothing downstream
+catches it; the upload just ends up corrupted with no error anywhere.
+
+`filePath` only works inside the project directory or the OS temp directory
+— that covers both real cases (a repo file, a fresh screenshot) while
+refusing to read anything else on the machine, such as credentials.
+
+Only jpeg, png, gif, and webp are accepted, matching what `get_task_image`
+can read back, capped at 5MB — resize anything bigger first.
+
 ## The branch field
 
 `branch` holds the git branch the work for a task lives on — a plain branch
