@@ -67,7 +67,7 @@ Two fields in the response change what you should say:
 | `patch_task_body` | task identity, `field` (`description` or `technicalNotes`), `edits` | Edit part of a body in place instead of resending the whole field — an ordered list of `{find, replace}` pairs, each an exact string match applied in sequence. Every `find` must match exactly once: if one is missing or appears more than once, the whole call fails and nothing is written |
 | `move_task`     | task identity, `columnId`, optional `position`      | Move task to different column — bottom of it if `position` is omitted |
 | `delete_task`   | `boardId`, `taskId`                                 | Delete a task                     |
-| `get_task`      | task identity                                     | Get task with its comments, subtasks (id and title only — call `get_task` on one of them for its own body), ancestor chain, and the board and columns it lives on |
+| `get_task`      | task identity                                     | Get task with its comments, subtasks (id, reference, and title only — call `get_task` with a subtask's `reference` for its own body), ancestor chain, and the board and columns it lives on |
 
 ### Comments
 
