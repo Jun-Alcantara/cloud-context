@@ -63,10 +63,11 @@ Two fields in the response change what you should say:
 | Action        | Requires                                        | Description                         |
 | ------------- | ----------------------------------------------- | ----------------------------------- |
 | `create_task`   | `boardId`, `columnId`, `title`, optional `description`, `technicalNotes`, `branch`, `position`, `parentTaskId` | Create task in a column — pass `parentTaskId` to nest it as a subtask |
-| `update_task`   | task identity                                     | Update task title, description, technical notes, or branch |
+| `update_task`   | task identity                                     | Update task title, description, technical notes, or branch — for creating a body or replacing one on purpose. For any change to a body that already has content, use `patch_task_body` instead |
+| `patch_task_body` | task identity, `field` (`description` or `technicalNotes`), `edits` | Edit part of a body in place instead of resending the whole field — an ordered list of `{find, replace}` pairs, each an exact string match applied in sequence. Every `find` must match exactly once: if one is missing or appears more than once, the whole call fails and nothing is written |
 | `move_task`     | task identity, `columnId`, optional `position`      | Move task to different column — bottom of it if `position` is omitted |
 | `delete_task`   | `boardId`, `taskId`                                 | Delete a task                     |
-| `get_task`      | task identity                                     | Get task with its comments, subtasks, and the board and columns it lives on |
+| `get_task`      | task identity                                     | Get task with its comments, subtasks (id and title only — call `get_task` on one of them for its own body), ancestor chain, and the board and columns it lives on |
 
 ### Comments
 
@@ -91,6 +92,25 @@ and a running number — "Academe Portal - RFID Attendance System" gives
 `APRAS-001`, `APRAS-002`, and so on. It never changes and is never reused, so
 it is safe to put in a branch name or a commit message. Show it whenever you
 list tasks for a human; they cannot quote a uuid back at you.
+
+## Patching a body in place
+
+A body you did not just write belongs to whoever wrote it — patch it with
+`patch_task_body`, don't overwrite it with `update_task`.
+
+- **Copy `find` verbatim out of a fresh `get_task`** — don't retype it or reuse
+  text from earlier in the conversation. A card someone opened in the browser
+  round-trips through the editor's markdown serialiser, so its spacing, list
+  markers, and escaping may no longer match what was originally sent.
+- **Disambiguate bare bullets** — if a line could match in more than one place,
+  include the heading above it, or the line after it, in `find`.
+- **There is no insert-at-a-point mode.** To add a line, put the line before it
+  in `find` and repeat that line plus the new one in `replace`.
+- **Deleting a numbered item means renumbering the ones that follow**, in the
+  same call.
+- **If a `find` fails to match, re-read the body** — call `get_task` again and
+  retry. Never fall back to `update_task`; that overwrites everything anyone
+  else has changed since.
 
 ## The branch field
 
@@ -202,8 +222,8 @@ one that ends up in branch names and commit messages.
 
 - Always run `diagnostics` first if the project link might not be set up
 - Show the `reference` whenever you list tasks, and accept one wherever the user
-  gives you one — `get_task`, `update_task`, `move_task` and `create_comment`
-  all take it in place of `taskId`
+  gives you one — `get_task`, `update_task`, `patch_task_body`, `move_task` and
+  `create_comment` all take it in place of `taskId`
 - Board and column names are user-defined, don't assume naming conventions
 - Task bodies and comments render in a BlockNote editor — write them as
   GitHub-Flavored Markdown, see [Writing descriptions and comments](#writing-descriptions-and-comments)
