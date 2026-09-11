@@ -158,11 +158,12 @@ answer. Ask only the second question, about what was left out.
 
 ## 4. File the ticket
 
-Only when there is no card. Follow `specify.md`'s format exactly: two separate
-bodies, description for the stakeholder with no code and no paths in it,
-technical notes for the implementer with every path relative to the project
-root. The description says what the change makes true and why — from their
-answer in step 3, grounded by the diff.
+Only when there is no card. Follow `specify.md`'s format exactly: three
+separate bodies, description for the stakeholder with no code and no paths in
+it, technical notes for the implementer with every path relative to the project
+root, and the acceptance criteria as their own checklist. The description says
+what the change makes true and why — from their answer in step 3, grounded by
+the diff.
 
 Two things differ from a forwards run, and both are in **The overrides** below:
 acceptance criteria are checked against the code that exists, and the ticket is

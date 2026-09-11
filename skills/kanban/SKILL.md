@@ -62,9 +62,9 @@ Two fields in the response change what you should say:
 
 | Action        | Requires                                        | Description                         |
 | ------------- | ----------------------------------------------- | ----------------------------------- |
-| `create_task`   | `boardId`, `columnId`, `title`, optional `description`, `technicalNotes`, `branch`, `position`, `parentTaskId` | Create task in a column — pass `parentTaskId` to nest it as a subtask |
-| `update_task`   | task identity                                     | Update task title, description, technical notes, or branch — for creating a body or replacing one on purpose. For any change to a body that already has content, use `patch_task_body` instead |
-| `patch_task_body` | task identity, `field` (`description` or `technicalNotes`), `edits` | Edit part of a body in place instead of resending the whole field — an ordered list of `{find, replace}` pairs, each an exact string match applied in sequence. Every `find` must match exactly once: if one is missing or appears more than once, the whole call fails and nothing is written |
+| `create_task`   | `boardId`, `columnId`, `title`, optional `description`, `technicalNotes`, `acceptanceCriteria`, `branch`, `position`, `parentTaskId` | Create task in a column — pass `parentTaskId` to nest it as a subtask |
+| `update_task`   | task identity                                     | Update task title, description, technical notes, acceptance criteria, or branch — for creating a body or replacing one on purpose. For any change to a body that already has content, use `patch_task_body` instead |
+| `patch_task_body` | task identity, `field` (`description`, `technicalNotes` or `acceptanceCriteria`), `edits` | Edit part of a body in place instead of resending the whole field — an ordered list of `{find, replace}` pairs, each an exact string match applied in sequence. Every `find` must match exactly once: if one is missing or appears more than once, the whole call fails and nothing is written |
 | `move_task`     | task identity, `columnId`, optional `position`      | Move task to different column — bottom of it if `position` is omitted |
 | `delete_task`   | `boardId`, `taskId`                                 | Delete a task                     |
 | `get_task`      | task identity                                     | Get task with its comments, subtasks (id, reference, and title only — call `get_task` with a subtask's `reference` for its own body), ancestor chain, and the board and columns it lives on |
@@ -157,14 +157,15 @@ name like `feature/apras-001-rfid-tap`, not a URL and not a remote. Set it when
 the branch is cut, and pass an empty string to clear it. The
 `/thedevelofurr:implement` command writes it automatically.
 
-## The two halves of a task
+## The three parts of a task
 
-A task carries two separate bodies, shown as tabs on its card:
+A task carries three separate bodies, shown as tabs on its card:
 
 | Field            | Written for                     | Contains                                                          |
 | ---------------- | ------------------------------- | ----------------------------------------------------------------- |
 | `description`    | whoever decides it gets built   | What must be true and why. No code, no class or table names, no framework vocabulary, no file paths. |
 | `technicalNotes` | whoever builds it               | The files and modules involved, what already exists to reuse, constraints and gotchas. |
+| `acceptanceCriteria` | whoever signs it off        | How anyone can tell it is done — a `- [ ] ` checklist of observable outcomes, each checkable without reading the code. No implementation detail, and never repeated as a heading inside `description`. |
 
 Every path in `technicalNotes` is **relative to the project root** —
 `src/kanban/kanban.service.ts`, never `/home/someone/projects/…`. Whoever reads
@@ -195,9 +196,10 @@ nested tables, LaTeX) is dropped or flattened into plain text.
 Guidelines:
 
 - Give every non-trivial task a structured description: a short overview
-  paragraph, then `##` sections such as Overview, Acceptance Criteria, Notes.
-- Use checklists for acceptance criteria and action items — they stay checkable
-  in the editor.
+  paragraph, then `##` sections such as Overview, Behaviour, Notes. Acceptance
+  criteria have their own field — don't open a section for them here.
+- Write `acceptanceCriteria` as a `- [ ] ` checklist; the items stay checkable
+  in the editor. Use checklists for action items too.
 - Use tables for structured data (endpoints, config values, options) and fenced
   code blocks with a language for snippets, commands, and terminal output.
 - Leave a blank line between blocks; the parser needs it to close a list or
@@ -229,7 +231,7 @@ Call `kanban_manage` with `action: "create_board"`, `name`, and optional `descri
 
 ### Creating a task
 
-Call `kanban_manage` with `action: "create_task"`, `boardId`, `columnId`, and `title`. The `description` and `technicalNotes` are optional — see [The two halves of a task](#the-two-halves-of-a-task) for which goes where, and [Writing descriptions and comments](#writing-descriptions-and-comments) for the format. Send both in the one call rather than patching notes on afterwards.
+Call `kanban_manage` with `action: "create_task"`, `boardId`, `columnId`, and `title`. The `description`, `technicalNotes` and `acceptanceCriteria` are optional — see [The three parts of a task](#the-three-parts-of-a-task) for which goes where, and [Writing descriptions and comments](#writing-descriptions-and-comments) for the format. Send them in the one call rather than patching bodies on afterwards.
 
 ### Moving a task
 
@@ -266,6 +268,7 @@ one that ends up in branch names and commit messages.
 - Task bodies and comments render in a BlockNote editor — write them as
   GitHub-Flavored Markdown, see [Writing descriptions and comments](#writing-descriptions-and-comments)
 - Keep the technical detail out of `description` and in `technicalNotes`, with
-  every path relative to the project root
+  every path relative to the project root, and the sign-off checklist in
+  `acceptanceCriteria` rather than as a section of the description
 - When creating a task at a specific position, examine the current board first to pick the right index
 - Deleting a board deletes all columns and tasks — warn the user before deleting

@@ -48,10 +48,10 @@ Ready to pick up:
 
 Then stop and let them choose. Do not pick one yourself.
 
-Read the whole task before doing anything else: **both** bodies —
-`description` for what must be true, `technicalNotes` for where it lands — and
-**every comment**, which is where decisions taken since the ticket was filed
-live.
+Read the whole task before doing anything else: **all three** bodies —
+`description` for what must be true, `technicalNotes` for where it lands,
+`acceptanceCriteria` for what the work is checked against — and **every
+comment**, which is where decisions taken since the ticket was filed live.
 
 ## 2. Open questions block the run
 
@@ -134,10 +134,10 @@ The description says what must be true; the technical notes say what the repo
 already looks like. Follow the codebase's own conventions over any general
 habit — match the patterns in the files you are editing.
 
-Work through the **Acceptance Criteria** as the definition of done. Every
-criterion is something that should hold when you finish; if one turns out to be
-impossible or wrong, that is a thing to raise in the comment at the end, not to
-quietly drop.
+Work through the **acceptance criteria** — the card's third tab — as the
+definition of done. Every criterion is something that should hold when you
+finish; if one turns out to be impossible or wrong, that is a thing to raise in
+the comment at the end, not to quietly drop.
 
 Run whatever the project uses to check itself — tests, typecheck, linter — and
 fix what your change broke. Do not fix unrelated pre-existing failures; note

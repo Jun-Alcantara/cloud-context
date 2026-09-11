@@ -136,6 +136,7 @@ filed and that is real progress; say where it stopped and what would restart it
   which part to build now rather than building all of it.
 - Do not open a pull request unless asked. Pushing the branch ends the run, same
   as `implement.md`.
-- Both halves of the ticket keep their rules: no code and no paths in the
-  description, the research in the technical notes, every path relative to the
-  project root — in the ticket *and* in the closing comment.
+- Every part of the ticket keeps its rules: no code and no paths in the
+  description, the research in the technical notes, the sign-off checklist in
+  the acceptance criteria, every path relative to the project root — in the
+  ticket *and* in the closing comment.

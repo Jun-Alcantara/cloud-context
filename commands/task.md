@@ -28,13 +28,15 @@ initials and a running number. Show it when you list tasks, and pass it as
 resolves across every board, so no `boardId` is needed alongside it.
 
 Descriptions and comments render in a BlockNote rich-text editor, so write them
-as GitHub-Flavored Markdown: `##` sections, `- [ ]` checklists for acceptance
-criteria, tables for structured data, fenced code blocks with a language tag,
-and a blank line between blocks. Raw HTML and other unsupported syntax is
-flattened to plain text. The `kanban` skill has the full reference; a trivial
-task needs nothing more than a sentence or two.
+as GitHub-Flavored Markdown: `##` sections, `- [ ]` checklists, tables for
+structured data, fenced code blocks with a language tag, and a blank line
+between blocks. Raw HTML and other unsupported syntax is flattened to plain
+text. The `kanban` skill has the full reference; a trivial task needs nothing
+more than a sentence or two.
 
-A task also has a second body, `technicalNotes` — the implementer-facing half,
-shown as its own tab on the card. Files, existing pieces, constraints go there
+A task has two further bodies, each its own tab on the card. `technicalNotes`
+is the implementer-facing one — files, existing pieces, constraints go there
 rather than in the description, and every path in it is relative to the project
-root, never absolute.
+root, never absolute. `acceptanceCriteria` is the sign-off checklist: `- [ ] `
+items naming observable outcomes, checkable without reading the code. Write
+them there rather than as a section of the description.
