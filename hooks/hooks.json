@@ -1,0 +1,16 @@
+{
+  "description": "AI Project Manager: gives Claude the plugin's names at session start",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

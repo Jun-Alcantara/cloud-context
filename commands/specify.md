@@ -15,20 +15,23 @@ The job is three steps, in order: **research → draft → file**. Do not skip t
 research; a spec that could have been written without opening the repo is a
 failed spec.
 
-## A ticket has two halves
+## A ticket has three parts
 
-The kanban card carries two separate documents, shown as tabs. Write both, and
-keep them apart:
+The kanban card carries three separate documents, shown as tabs. Write all
+three, and keep them apart:
 
 - **Description** — the requirements. Written for the person who decides
   *whether* this gets built. This is the document the rest of this file is
   about, and its rules are strict.
 - **Technical Notes** — what you found in the repo, written for whoever builds
   it. The one place specifics belong. See **The technical notes** below.
+- **Acceptance Criteria** — the checklist the finished work is signed off
+  against. See **The acceptance criteria** below.
 
-They are separate fields on the task, not two sections of one body. Nothing
+They are separate fields on the task, not three sections of one body. Nothing
 technical leaks upward into the description; nothing requirement-shaped gets
-restated downward in the notes.
+restated downward in the notes; the criteria are not repeated as a heading in
+either.
 
 ## The one hard rule: specify only — no plan, no code
 
@@ -43,7 +46,7 @@ delete a single file. Do not run migrations, generators, installs, formatters,
 or tests. Do not start a branch, a commit, or a PR. The only thing this command
 writes anywhere is the kanban ticket.
 
-Both halves of the ticket stay clear of code. **There is no code in the ticket
+Every part of the ticket stays clear of code. **There is no code in the ticket
 at all**: no function bodies, no queries, no migrations, no diffs, not even a
 one-line signature. Naming a file the notes point at is grounding; pasting what
 is inside it is not.
@@ -195,12 +198,6 @@ order:
   for the part of the product a stakeholder would recognise ("Setting up a
   link", "Tapping in at another campus", "Reports") — not for the layer of the
   stack ("Backend", "Data").
-- **## Acceptance Criteria** — a `- [ ]` checklist. Each item is something the
-  stakeholder could confirm themselves by using the product — a thing they do,
-  and what they should see. Not something only a developer could check by
-  reading a database row. Every user story above
-  must be covered by at least one criterion; a story nothing verifies is a gap.
-  Include the failure and edge cases, not only the happy path.
 - **## Open Questions** — *only if there are any.* Anything material that is
   genuinely undecided, where the answer would change what gets built. Number
   them, and for each say what it blocks and give a recommended default. Only
@@ -210,8 +207,22 @@ order:
   noise.
 
 That is the whole description — every section of it written for the
-stakeholder, and no **## Technical Notes** section at the end. Technical notes
-are their own field now, not the last heading of this one.
+stakeholder, and no **## Technical Notes** or **## Acceptance Criteria**
+section at the end. Both are their own fields now, not the last headings of
+this one.
+
+### The acceptance criteria
+
+A `- [ ]` checklist, sent as `acceptanceCriteria` — the card's third tab, and
+what the work is signed off against. Each item is something the stakeholder
+could confirm themselves by using the product: a thing they do, and what they
+should see. Not something only a developer could check by reading a database
+row. Every user story in the description must be covered by at least one
+criterion; a story nothing verifies is a gap. Include the failure and edge
+cases, not only the happy path.
+
+Plain checklist items, no `##` headings — the field is one list. Group with
+`###` only when a long ticket genuinely needs it.
 
 **There is no implementation plan and no technical design here** — no
 sequencing, no file-by-file steps, no schema or API design. Those belong to a
@@ -221,10 +232,10 @@ order has skipped that conversation.
 
 ### The technical notes
 
-The second field, written to the rules in **The technical notes** above: what
-the research found, for the developer who builds this. Same markdown support.
-Short `##` sections or plain bullets — whatever suits what you found. Every
-path relative to the project root.
+The implementer-facing field, written to the rules in **The technical notes**
+above: what the research found, for the developer who builds this. Same
+markdown support. Short `##` sections or plain bullets — whatever suits what
+you found. Every path relative to the project root.
 
 ### The title
 
@@ -244,9 +255,10 @@ terminal and say "yes".
 4. Pick the intake column — the leftmost / backlog-style column (often "To Do").
    If the naming is ambiguous, ask.
 5. `kanban_manage` with `action: "create_task"`, passing `boardId`, `columnId`,
-   `title`, the full `description`, and the `technicalNotes`. Both bodies go in
-   the one call — filing the ticket and then patching the notes on is two round
-   trips and leaves the card half-written in between.
+   `title`, the full `description`, the `technicalNotes`, and the
+   `acceptanceCriteria`. All three bodies go in the one call — filing the ticket
+   and then patching the rest on is three round trips and leaves the card
+   half-written in between.
 
 Use the exact IDs the API returned. Never invent an ID, a board, or a column.
 
@@ -272,14 +284,14 @@ Created **APRAS-004 — Add forgot-password flow with emailed reset tokens** in 
 
 https://aijoe.onrender.com/projects/.../tasks/...
 
-4 user stories, 11 requirements, 9 acceptance criteria, plus technical notes on
-the Technical tab. 3 open questions at the bottom — worth settling before
-planning.
+4 user stories and 11 requirements, 9 acceptance criteria on the Acceptance
+tab, plus technical notes on the Technical tab. 3 open questions at the bottom
+— worth settling before planning.
 ```
 
-Then add a one-line summary: how many user stories, requirements, and
-acceptance criteria, that the research is on the Technical tab, and the number
-of open questions if there are any.
+Then add a one-line summary: how many user stories and requirements, how many
+acceptance criteria and that they are on the Acceptance tab, that the research
+is on the Technical tab, and the number of open questions if there are any.
 
 Planning is the next step, not this one. You may say the spec is ready to plan
 against; do not start planning it, and do not attach a plan to the report.
