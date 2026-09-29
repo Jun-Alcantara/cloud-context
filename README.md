@@ -94,8 +94,9 @@ the one thing the diff can't tell it — files the ticket straight into Done,
 records the branch on the card, and closes it out with the same comment
 `implement` writes. It refuses to run on a branch that's already merged.
 
-**Skills** — `guide` (task and context management) and `kanban` (board usage)
-load automatically when you ask Claude about project tasks or boards.
+**Skills** — `guide` (task and context management), `kanban` (board usage) and
+`documents` (reading and editing project documents) load automatically when you
+ask Claude about project tasks, boards, or documents.
 
 **MCP tools** — `list_projects`, `link_project`, `current_project` are always
 available; `unlink_project`, `get_project_info`, and `kanban_manage` appear once

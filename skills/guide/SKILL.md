@@ -103,6 +103,12 @@ whole cards, so use it to locate a task instead of pulling every board with
 (the **Embed** button on a card) are searchable — when `indexedTaskCount` is 0,
 nothing has been indexed yet, which is not the same as the task not existing.
 
+### Documents (linked directories)
+`list_documents`, `get_document`, `get_document_outline`, `search_document`,
+`get_document_blocks`, `edit_document_blocks`, `create_document` and
+`get_document_image` — read, search, and edit the project's documents block by
+block. Use the `documents` skill for workflow guidance.
+
 ## Troubleshooting
 
 ### None of the plugin's tools exist
